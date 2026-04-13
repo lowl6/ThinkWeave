@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>升级您的协作体验 - 价格方案</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <style>
+        /* Google Fonts 风格 */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; }
+
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #3b82f6;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #3b82f6;
+        }
+        
+        /* 推荐卡片的流光效果 */
+        .recommended-card {
+            border: 2px solid #3b82f6;
+            position: relative;
+            overflow: hidden;
+        }
+        .recommended-badge {
+            background: #e8f0fe;
+            color: #1967d2;
+            font-weight: 600;
+            font-size: 0.75rem;
+            padding: 4px 12px;
+            border-radius: 999px;
+            display: inline-block;
+            margin-bottom: 1rem;
+        }
+
+        .check-icon { color: #1e8e3e; margin-right: 0.75rem; flex-shrink: 0; }
+        .feature-item { display: flex; align-items: start; margin-bottom: 0.75rem; font-size: 0.95rem; color: #374151; }
+        .feature-text { line-height: 1.5; }
+    </style>
+</head>
+<body class="bg-white text-slate-800">
+
+    <nav class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div class="flex items-center gap-2 text-xl font-bold text-slate-800">
+            <div class="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center text-white text-sm">
+                <i class="fa-solid fa-layer-group"></i>
+            </div>
+            AI Co-Lab
+        </div>
+        <button onclick="window.history.back()" class="text-sm font-medium text-gray-600 hover:text-gray-900">
+            <i class="fa-solid fa-xmark mr-1"></i> 关闭
+        </button>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-12 md:py-16 text-center">
+        
+        <h1 class="text-3xl md:text-5xl font-bold mb-4 text-slate-900">选择适合您的协作方案</h1>
+        <p class="text-lg text-slate-500 mb-10 max-w-2xl mx-auto">
+            解锁更强大的 AI 模型、专属知识库支持以及高级 ThinkLets 决策流程。
+        </p>
+
+        <div class="flex items-center justify-center mb-12 gap-4">
+            <span class="text-sm font-medium text-gray-900" id="monthly-label">月付</span>
+            
+            <div class="relative inline-block w-12 h-6 align-middle select-none transition duration-200 ease-in">
+                <input type="checkbox" name="toggle" id="billing-toggle" class="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 border-blue-600 appearance-none cursor-pointer transition-all duration-300 left-0" style="top:0;" onclick="toggleBilling()">
+                <label for="billing-toggle" class="toggle-label block overflow-hidden h-6 rounded-full bg-blue-100 cursor-pointer"></label>
+            </div>
+            
+            <span class="text-sm font-medium text-gray-500" id="yearly-label">年付 <span class="text-green-600 text-xs font-bold bg-green-50 px-2 py-0.5 rounded-full ml-1">-17%</span></span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-6xl mx-auto text-left">
+            
+            <div class="bg-white rounded-3xl p-8 border border-gray-200 shadow-sm hover:shadow-md transition flex flex-col h-full">
+                <div class="mb-4">
+                    <h3 class="text-xl font-semibold text-slate-900">基础版</h3>
+                    <p class="text-sm text-slate-500 mt-1">适合个人体验 AI 协作</p>
+                </div>
+                <div class="mb-6">
+                    <span class="text-4xl font-bold text-slate-900">¥0</span>
+                    <span class="text-slate-500">/ 永久免费</span>
+                </div>
+                <button class="w-full py-2.5 rounded-full border border-gray-300 text-blue-600 font-medium hover:bg-blue-50 transition mb-8">
+                    当前方案
+                </button>
+                
+                <div class="flex-1 space-y-4 border-t border-gray-100 pt-6">
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon"></i>
+                        <span class="feature-text">房间时长限制 <strong>40分钟</strong></span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon"></i>
+                        <span class="feature-text">最多 <strong>1位</strong> 协作者 + 2个 AI</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon"></i>
+                        <span class="feature-text">基础 AI 模型 (DeepSeek-Lite)</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon"></i>
+                        <span class="feature-text">基础头脑风暴流程</span>
+                    </div>
+                    <div class="feature-item text-gray-400">
+                        <i class="fa-solid fa-minus w-4 mr-3 text-center text-xs"></i>
+                        <span class="feature-text line-through">知识库上传</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-3xl p-8 shadow-xl transform md:-translate-y-4 flex flex-col h-full recommended-card">
+                <div class="absolute top-0 inset-x-0 h-1 bg-blue-600"></div>
+                <div class="mb-4">
+                    <span class="recommended-badge">最受欢迎</span>
+                    <h3 class="text-xl font-semibold text-slate-900">专业版</h3>
+                    <p class="text-sm text-slate-500 mt-1">适合深度研究与论文写作</p>
+                </div>
+                <div class="mb-6">
+                    <span class="text-5xl font-bold text-slate-900 price-display" data-monthly="59" data-yearly="388">29¥</span>
+                    <span class="text-slate-500 period-display">/ 月</span>
+                </div>
+                <button class="w-full py-3 rounded-full bg-blue-600 text-white font-medium hover:bg-blue-700 shadow-lg shadow-blue-600/30 transition mb-8 transform hover:scale-[1.02]">
+                    立即升级
+                </button>
+                
+                <div class="flex-1 space-y-4 border-t border-gray-100 pt-6">
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon text-blue-600"></i>
+                        <span class="feature-text"><strong>24小时</strong> 连续房间时长</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon text-blue-600"></i>
+                        <span class="feature-text">最多 <strong>5位</strong> 协作者 + 5个 AI</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon text-blue-600"></i>
+                        <span class="feature-text"><strong>高级模型</strong> (DeepSeek V3, GPT-4o)</span>
+                    </div>
+                    <div class="feature-item bg-blue-50 p-2 rounded-lg -mx-2">
+                        <i class="fa-solid fa-file-pdf check-icon text-blue-600 mt-1"></i>
+                        <div class="feature-text text-blue-800 font-medium">
+                            知识库 RAG 支持
+                            <div class="text-xs font-normal text-blue-600 mt-0.5">上传 PDF/Word (500MB)</div>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon text-blue-600"></i>
+                        <span class="feature-text"><strong>高级 ThinkLets</strong> (六顶思考帽, SWOT, 决策矩阵)</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-50 rounded-3xl p-8 border border-gray-200 hover:border-gray-300 transition flex flex-col h-full">
+                <div class="mb-4">
+                    <h3 class="text-xl font-semibold text-slate-900">团队版</h3>
+                    <p class="text-sm text-slate-500 mt-1">适合企业与实验室课题组</p>
+                </div>
+                <div class="mb-6">
+                    <div class="flex items-center gap-2">
+                        <span class="text-4xl font-bold text-slate-900">定制报价</span>
+                        <span class="text-xs font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-full">按规模与需求</span>
+                    </div>
+                    <div class="text-sm text-slate-500 mt-1">不按人数计费 · 灵活方案与私有化部署</div>
+                </div>
+                <button class="w-full py-2.5 rounded-full bg-slate-800 text-white font-medium hover:bg-slate-900 transition mb-8">
+                    联系销售
+                </button>
+                
+                <div class="flex-1 space-y-4 border-t border-gray-200 pt-6">
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon"></i>
+                        <span class="feature-text"><strong>不限时</strong> 房间时长</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-check check-icon"></i>
+                        <span class="feature-text"><strong>50+</strong> 人员与大规模 AI 集群</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-database check-icon"></i>
+                        <span class="feature-text"><strong>企业级知识库</strong> (10GB空间)</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-sitemap check-icon"></i>
+                        <span class="feature-text">自定义 ThinkLets 流程设计器</span>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-headset check-icon"></i>
+                        <span class="feature-text">API 接入与专属客服</span>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="mt-16 pt-10 border-t border-gray-200">
+            <p class="text-sm text-gray-400 font-medium uppercase tracking-widest mb-6">深受以下高校与机构信赖</p>
+            <div class="flex flex-wrap justify-center gap-8 md:gap-16 opacity-50 grayscale hover:grayscale-0 transition-all duration-500">
+                <div class="flex items-center gap-2 text-xl font-bold text-slate-700"><i class="fa-solid fa-building-columns"></i> RUC</div>
+                <div class="flex items-center gap-2 text-xl font-bold text-slate-700"><i class="fa-solid fa-flask"></i> AI Lab</div>
+                <div class="flex items-center gap-2 text-xl font-bold text-slate-700"><i class="fa-solid fa-globe"></i> Digital Inst.</div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // 简单的价格切换逻辑
+        function toggleBilling() {
+            const isYearly = document.getElementById('billing-toggle').checked;
+            const prices = document.querySelectorAll('.price-display');
+            const periods = document.querySelectorAll('.period-display');
+            
+            prices.forEach(price => {
+                // 如果选中年付，显示 yearly 价格，否则显示 monthly
+                const amount = isYearly ? price.dataset.yearly : price.dataset.monthly;
+                // 添加淡入淡出动画效果
+                price.style.opacity = 0;
+                setTimeout(() => {
+                    price.innerText = '¥' + amount;
+                    price.style.opacity = 1;
+                }, 150);
+            });
+
+            periods.forEach(period => {
+                period.style.opacity = 0;
+                setTimeout(() => {
+                    period.innerText = isYearly ? '/ 年' : '/ 月';
+                    period.style.opacity = 1;
+                }, 150);
+            });
+
+            // 样式更新
+            if(isYearly) {
+                document.getElementById('yearly-label').classList.replace('text-gray-500', 'text-gray-900');
+                document.getElementById('monthly-label').classList.replace('text-gray-900', 'text-gray-500');
+            } else {
+                document.getElementById('yearly-label').classList.replace('text-gray-900', 'text-gray-500');
+                document.getElementById('monthly-label').classList.replace('text-gray-500', 'text-gray-900');
+            }
+        }
+    </script>
+</body>
+</html>

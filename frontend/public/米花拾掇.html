@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>环节 2: 米花拾取 (Popcorn Sort) - AI Co-Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <script src="workflow-nav.js"></script>
+    <script src="thinklet-common.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        /* 卡片选中动画 */
+        .popcorn-card {
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .popcorn-card.selected {
+            border-color: #0d9488; /* Teal-600 */
+            background-color: #f0fdfa; /* Teal-50 */
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px -3px rgba(249, 115, 22, 0.1), 0 4px 6px -2px rgba(249, 115, 22, 0.05);
+        }
+        /* AI 聚类框 */
+        .ai-cluster-border {
+            border: 2px dashed #e2e8f0;
+            position: relative;
+        }
+        .ai-cluster-label {
+            position: absolute;
+            top: -12px;
+            left: 16px;
+            background: white;
+            padding: 0 8px;
+            font-size: 0.75rem;
+            color: #64748b;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden">
+
+    <!-- 左侧导航栏（动态流程） -->
+    <aside id="workflow-sidebar" class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 hidden md:flex z-20 shadow-xl" style="transition: width 0.3s ease, min-width 0.3s ease;">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-700 bg-slate-900">
+            <div class="flex items-center">
+                <div class="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center mr-3 shadow-lg shadow-slate-800/30">
+                    <i class="fa-solid fa-diagram-project text-white text-sm"></i>
+                </div>
+                <h1 class="font-bold text-lg tracking-wide">AI Co-Lab</h1>
+            </div>
+            <button onclick="WorkflowNav.toggleDrawer(document.getElementById('workflow-sidebar'), this)" class="text-slate-400 hover:text-white transition p-1 rounded hover:bg-slate-700" title="收起侧栏">
+                <i class="fa-solid fa-angles-left text-sm"></i>
+            </button>
+        </div>
+        <div id="workflow-nav-content" class="flex-1 overflow-y-auto"></div>
+    </aside>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+
+    <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm">
+        
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col">
+                <h1 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+                    米花拾掇 (PopcornSort)
+                </h1>
+                <span class="text-xs text-slate-500">从观点中筛选核心方案</span>
+            </div>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div class="flex items-center gap-2 bg-teal-50 text-teal-700 px-3 py-1 rounded-full text-xs font-bold border border-teal-100">
+                <i class="fa-solid fa-hourglass-half"></i>
+                <span id="timer">04:59</span>
+            </div>
+        </div>
+
+        <div class="hidden md:flex items-center gap-2">
+            <div class="h-1.5 w-12 bg-green-200 rounded-full"></div>
+            <div class="h-1.5 w-12 bg-teal-500 rounded-full"></div>
+            <div class="h-1.5 w-12 bg-slate-200 rounded-full"></div>
+            <div class="h-1.5 w-12 bg-slate-200 rounded-full"></div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button class="text-slate-500 hover:text-slate-800 transition"><i class="fa-solid fa-users"></i></button>
+            <button onclick="finishSelection()" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md">
+                结束筛选
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        
+        <div class="flex-1 flex flex-col bg-slate-50 relative">
+            
+            <div class="px-6 py-4 flex items-center justify-between">
+                <div class="text-sm text-slate-500">
+                    已选中: <span id="select-count" class="font-bold text-teal-600 text-lg">0</span> / 5 (建议)
+                </div>
+                
+                <div class="flex gap-2">
+                    <button onclick="triggerAICluster()" class="bg-white border border-slate-200 text-slate-600 hover:text-blue-600 hover:border-blue-200 px-3 py-1.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-wand-magic-sparkles text-blue-500"></i>
+                        AI 语义聚类
+                    </button>
+                    <button class="bg-white border border-slate-200 text-slate-600 hover:text-red-600 hover:border-red-200 px-3 py-1.5 rounded-lg text-sm font-medium transition shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-trash-can-arrow-up"></i>
+                        移除重复项
+                    </button>
+                </div>
+            </div>
+
+            <div id="ideas-grid" class="flex-1 overflow-y-auto p-6 custom-scroll">
+                <!-- 动态渲染 -->
+            </div>
+
+            <div class="bg-white border-t border-slate-200 p-3 text-center">
+                <p class="text-xs text-slate-400">
+                    <i class="fa-solid fa-circle-info mr-1"></i>
+                    点击卡片选中保留。倒计时结束后，未选中的观点将归档至回收站。
+                </p>
+            </div>
+        </div>
+
+        <aside class="w-72 bg-white border-l border-slate-200 hidden lg:flex flex-col z-10">
+            <div class="p-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-700">实时筛选动态</h3>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto p-4 space-y-4">
+                <div id="activity-feed" class="space-y-3">
+                    <div class="flex gap-3 text-sm text-slate-400">
+                        <div class="mt-1"><i class="fa-solid fa-circle-info"></i></div>
+                        <div>
+                            <span class="text-xs">等待用户加入...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="p-4 bg-slate-50 border-t border-slate-100">
+                <div class="text-xs font-bold text-slate-400 uppercase mb-3">成员完成度</div>
+                <div id="member-status" class="text-xs text-slate-500">加载中...</div>
+            </div>
+        </aside>
+
+    </main>
+
+    <script>
+        // 从共享数据加载（ThinkLetCommon 标准加载）
+        const _roomId = ThinkLetCommon.getRoomId();
+        const ideas = ThinkLetCommon.loadSeedData();
+
+        let count = 0;
+        const countSpan = document.getElementById('select-count');
+
+        function renderIdeasGrid() {
+            const grid = document.getElementById('ideas-grid');
+            if (ideas.length === 0) {
+                grid.innerHTML = `<div class="flex items-center justify-center h-full text-slate-400">
+                    <div class="text-center"><i class="fa-regular fa-folder-open text-4xl mb-3 block opacity-50"></i>
+                    <p class="text-sm">暂无数据 — 请在上一环节完成后跳转到此页面</p>
+                    <button onclick="WorkflowNav.goPrev ? WorkflowNav.goPrev() : location.href='首页.html'" class="text-blue-500 text-xs hover:underline mt-2 inline-block cursor-pointer">← 返回上一步</button></div>
+                </div>`;
+                return;
+            }
+            let html = '<div class="ai-cluster-border rounded-xl p-4 mb-6 pt-6"><div class="ai-cluster-label border border-slate-200 shadow-sm rounded-md"><i class="fa-solid fa-lightbulb text-xs text-teal-500"></i> 采纳的观点</div><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">';
+            ideas.forEach(idea => {
+                html += `
+                    <div class="popcorn-card bg-white p-4 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:border-blue-300 relative group" onclick="toggleCard(this)">
+                        <div class="absolute top-3 right-3 w-5 h-5 rounded-full border-2 border-slate-200 flex items-center justify-center transition-colors group-hover:border-teal-400 checkbox-circle">
+                            <i class="fa-solid fa-check text-white text-xs opacity-0 transition-opacity"></i>
+                        </div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs"><i class="fa-solid fa-lightbulb"></i></div>
+                            <span class="text-xs text-slate-400 font-bold">${idea.author || 'AI'}</span>
+                        </div>
+                        <p class="text-sm text-slate-700 font-medium leading-relaxed">${idea.text}</p>
+                    </div>
+                `;
+            });
+            html += '</div></div>';
+            grid.innerHTML = html;
+        }
+
+        function toggleCard(card) {
+            card.classList.toggle('selected');
+            card.classList.toggle('border-teal-300');
+            
+            const checkbox = card.querySelector('.checkbox-circle');
+            const checkIcon = card.querySelector('.fa-check');
+            
+            if (card.classList.contains('selected')) {
+                checkbox.classList.add('bg-teal-500', 'border-teal-500');
+                checkbox.classList.remove('border-slate-200');
+                checkIcon.classList.remove('opacity-0');
+                count++;
+            } else {
+                checkbox.classList.remove('bg-teal-500', 'border-teal-500');
+                checkbox.classList.add('border-slate-200');
+                checkIcon.classList.add('opacity-0');
+                count--;
+            }
+
+            countSpan.innerText = count;
+            countSpan.classList.add('scale-125');
+            setTimeout(() => countSpan.classList.remove('scale-125'), 150);
+        }
+
+        function triggerAICluster() {
+            const labels = document.querySelectorAll('.ai-cluster-label');
+            labels.forEach(label => {
+                label.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin text-blue-500"></i> AI 正在分析语义...';
+            });
+            setTimeout(() => {
+                labels.forEach(label => {
+                    label.innerHTML = '<i class="fa-solid fa-link text-xs text-blue-500"></i> AI 聚类完成';
+                });
+            }, 1000);
+        }
+
+        renderIdeasGrid();
+
+        // 结束筛选：保存已选中观点到步骤结果
+        function finishSelection() {
+            const selected = document.querySelectorAll('.popcorn-card.selected');
+            if (selected.length === 0) { alert('请至少选中一条观点'); return; }
+            const resultIdeas = [];
+            selected.forEach((card, i) => {
+                const text = card.querySelector('p').textContent;
+                const author = card.querySelector('.text-xs.text-slate-400.font-bold');
+                resultIdeas.push({ id: i + 1, text, author: author ? author.textContent : 'AI', votes: 0 });
+            });
+            ThinkLetCommon.saveStepResult(resultIdeas);
+            alert(`筛选完成！已保留 ${resultIdeas.length} 条观点`);
+        }
+
+        // ═══ 共用模块初始化（已有左侧栏，只注入右侧成员面板）═══
+        ThinkLetCommon.init({ skipLeftSidebar: true });
+        if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) WorkflowNav.updateNextButton();
+    </script>
+    </div>
+</body>
+</html>

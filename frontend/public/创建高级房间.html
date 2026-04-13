@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>创建高级研讨房间 - AI Co-Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 2px; }
+
+        .step-line {
+            position: absolute;
+            left: 24px;
+            top: 40px;
+            bottom: -20px;
+            width: 2px;
+            background-color: #e2e8f0;
+            z-index: 0;
+        }
+        .step-card:last-child .step-line { display: none; }
+
+        /* AI 生成时的微光动画 */
+        @keyframes shimmer {
+            0% { background-position: -200% 0; }
+            100% { background-position: 200% 0; }
+        }
+        .ai-generating {
+            background: linear-gradient(90deg, #f0fdf4 25%, #dcfce7 50%, #f0fdf4 75%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800">
+
+    <nav class="bg-white border-b border-slate-200 sticky top-0 z-30 px-6 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <a href="#" onclick="window.history.back()" class="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-500 transition">
+                <i class="fa-solid fa-arrow-left"></i>
+            </a>
+            <h1 class="text-xl font-bold text-slate-800">创建高级研讨房间</h1>
+            <span class="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded border border-blue-200">专业版</span>
+        </div>
+        <div class="flex items-center gap-4">
+            <span class="text-sm text-slate-500">预计耗时: <span id="total-time" class="font-bold text-slate-800">45</span> 分钟</span>
+            <button onclick="createRoom()" id="create-room-btn" class="bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white px-6 py-2 rounded-lg font-semibold shadow-md shadow-slate-800/20 transition flex items-center gap-2">
+                <i class="fa-solid fa-rocket"></i>
+                立即创建
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        <div class="lg:col-span-4 space-y-6">
+            
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-blue-500"></i> 基础信息
+                </h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">研讨主题 <span class="text-red-500">*</span></label>
+                        <input type="text" id="topic-input" value="" placeholder="输入研讨主题，例如：如何提升产品用户体验？" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">房间密码</label>
+                        <input type="password" id="room-password-input" placeholder="留空则公开" class="w-full px-4 py-2 rounded-lg border border-slate-300 focus:ring-2 focus:ring-blue-500 outline-none transition">
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-robot text-blue-500"></i> AI 专家席位
+                    </h3>
+                    <button onclick="addAgentSeat()" class="text-xs px-2.5 py-1 rounded-md border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 transition flex items-center gap-1"><i class="fa-solid fa-plus"></i> 添加席位</button>
+                </div>
+                
+                <div id="ai-agent-list" class="space-y-3">
+                    <!-- 由 JS 动态渲染 -->
+                </div>
+            </div>
+
+            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                        <i class="fa-solid fa-user-group text-green-500"></i> 人类队友
+                    </h3>
+                    <button onclick="addHumanSeat()" class="text-xs px-2.5 py-1 rounded-md border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 transition flex items-center gap-1"><i class="fa-solid fa-plus"></i> 添加成员</button>
+                </div>
+                <div id="human-seat-list" class="space-y-2">
+                    <!-- 由 JS 动态渲染 -->
+                </div>
+                <p class="text-xs text-slate-400 mt-3"><i class="fa-solid fa-circle-info mr-1"></i> 预设的人类成员将在房间创建后自动分配角色，或通过邀请链接加入。</p>
+            </div>
+
+            <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden group">
+                <div class="absolute top-0 right-0 bg-blue-600 text-white text-[10px] px-2 py-1 rounded-bl-lg font-bold">PRO</div>
+                <h3 class="font-bold text-slate-800 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-database text-blue-600"></i> 研讨知识库
+                </h3>
+                <p class="text-xs text-slate-500 mb-4">上传 PDF/Word 文档，AI 将基于文档内容进行决策支持。</p>
+                <div onclick="document.getElementById('room-knowledge-input').click()" class="border-2 border-dashed border-blue-200 rounded-xl bg-white/50 p-4 text-center cursor-pointer hover:bg-white hover:border-blue-400 transition">
+                    <input type="file" id="room-knowledge-input" class="hidden" multiple accept=".pdf,.txt,.doc,.docx,.md,.json" onchange="handleRoomKnowledgeFiles(this.files)">
+                    <i class="fa-solid fa-cloud-arrow-up text-2xl text-blue-300 mb-2"></i>
+                    <div class="text-sm text-slate-600 font-medium">点击上传背景材料</div>
+                    <div class="text-xs text-slate-400 mt-1">支持 PDF、TXT、Word、Markdown、JSON</div>
+                </div>
+                <div id="room-knowledge-list" class="mt-3 space-y-2 hidden">
+                    <div class="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">已上传文件</div>
+                    <div id="room-knowledge-files" class="space-y-1"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-8 flex flex-col h-full">
+            
+            <div class="bg-white flex-1 rounded-2xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+                
+                <div class="p-6 border-b border-slate-100">
+                    <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
+                        <div>
+                            <h2 class="text-lg font-bold text-slate-800">ThinkLets 流程设计器</h2>
+                            <p class="text-sm text-slate-500">定制 AI 与人类的协作环节，控制研讨节奏。</p>
+                        </div>
+                        
+                        <div class="flex items-center gap-3">
+                            <button onclick="generateAIWorkflow()" id="ai-btn" class="bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-md shadow-slate-800/20 transition flex items-center gap-2 transform active:scale-95">
+                                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                                AI 智能设计
+                            </button>
+
+                            <div class="relative">
+                                <select id="template-select" onchange="loadTemplate()" class="appearance-none bg-slate-100 border border-slate-200 text-slate-700 py-2 pl-4 pr-10 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer w-40">
+                                    <option value="custom">自定义</option>
+                                <option value="brainstorm" selected>自由风暴</option>
+                                <option value="deep_analysis">深度分析</option>
+                                <option value="decision">方案决策</option>
+                                <option value="innovation">创新探索</option>
+                                </select>
+                                <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-500">
+                                    <i class="fa-solid fa-chevron-down text-xs"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="flex gap-3 text-xs">
+                        <span class="flex items-center gap-1 text-slate-500"><span class="w-2 h-2 rounded-full bg-green-400"></span> 发散</span>
+                        <span class="flex items-center gap-1 text-slate-500"><span class="w-2 h-2 rounded-full bg-teal-400"></span> 收敛</span>
+                        <span class="flex items-center gap-1 text-slate-500"><span class="w-2 h-2 rounded-full bg-blue-400"></span> 评估</span>
+                    </div>
+                </div>
+
+                <div id="workflow-container" class="flex-1 p-6 overflow-y-auto custom-scroll bg-slate-50/50">
+                    </div>
+
+                <div class="p-4 border-t border-slate-100 bg-white">
+                    <button onclick="addStep()" class="w-full py-3 border-2 border-dashed border-slate-300 rounded-xl text-slate-500 font-medium hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-2 group">
+                        <i class="fa-solid fa-circle-plus text-xl group-hover:scale-110 transition-transform"></i>
+                        添加新环节
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        // URL 参数预填充主题
+        (function() {
+            const urlTopic = new URLSearchParams(location.search).get('topic');
+            if (urlTopic) {
+                window.addEventListener('DOMContentLoaded', () => {
+                    const topicInput = document.getElementById('topic-input');
+                    if (topicInput) topicInput.value = urlTopic;
+                });
+            }
+        })();
+
+        const thinklets = {
+            'FreeBrainstorm': { icon: 'fa-bolt', color: 'green', label: '自由头脑风暴', type: '发散', page: '自由头脑风暴.html' },
+            'LeafHopper': { icon: 'fa-leaf', color: 'green', label: '思维跳跃', type: '发散', page: '思维跳跃.html' },
+            'FastFocus': { icon: 'fa-bullseye', color: 'blue', label: '快速聚焦', type: '收敛', page: '快速聚焦.html' },
+            'BucketWalk': { icon: 'fa-bucket', color: 'indigo', label: '水桶漫步', type: '分类', page: '水桶漫步.html' },
+            'PopcornSort': { icon: 'fa-arrow-down-short-wide', color: 'teal', label: '米花拾掇', type: '收敛', page: '米花拾掇.html' },
+            'StrawPoll': { icon: 'fa-check-to-slot', color: 'blue', label: '麦秆投票', type: '评估', page: '麦秆投票.html' },
+        };
+
+        const SUPPORTED_THINKLET_TYPES = new Set([
+            'FreeBrainstorm', 'LeafHopper', 'FastFocus', 'BucketWalk', 'PopcornSort', 'StrawPoll'
+        ]);
+
+        const templates = {
+            'brainstorm': [
+                { type: 'FreeBrainstorm', time: 15, title: '问题发散与创意收集', prompt: '针对主题提出尽可能多的解决方案，不做评判。' },
+                { type: 'PopcornSort', time: 10, title: '初步筛选与合并', prompt: 'AI协助去重，合并相似观点，人类成员点选保留项。' },
+                { type: 'StrawPoll', time: 5, title: '最终方案投票', prompt: '对剩余方案进行打分排序。' },
+            ],
+            'deep_analysis': [
+                { type: 'FreeBrainstorm', time: 10, title: '多角度发散', prompt: '从不同角度分析主题，提出各类观点。' },
+                { type: 'FastFocus', time: 10, title: '观点整合与聚焦', prompt: 'AI查重合并，成员投票保留核心观点。' },
+                { type: 'BucketWalk', time: 10, title: '分类归纳', prompt: '将保留的观点按类别归入不同桶中。' },
+                { type: 'StrawPoll', time: 5, title: '优先级排序', prompt: '给各方案打分排序确定优先级。' },
+            ],
+            'decision': [
+                { type: 'FastFocus', time: 10, title: '背景信息对齐', prompt: '先聚焦理清决策背景和约束条件。' },
+                { type: 'FreeBrainstorm', time: 10, title: '备选方案发散', prompt: '自由提出备选方案，不做评判。' },
+                { type: 'FastFocus', time: 8, title: '方案精简', prompt: '合并相似方案，投票筛选出前3名。' },
+                { type: 'StrawPoll', time: 5, title: '最终决策投票', prompt: '对精简后的方案进行正式投票。' },
+            ],
+            'innovation': [
+                { type: 'LeafHopper', time: 12, title: '思维跳跃发散', prompt: '通过联想和跳跃思维探索创新方向。' },
+                { type: 'PopcornSort', time: 8, title: '创意筛选', prompt: '从所有创意中挑选最有潜力的。' },
+                { type: 'BucketWalk', time: 8, title: '创意分类', prompt: '将创意按可行性、创新性等维度分类。' },
+                { type: 'StrawPoll', time: 5, title: '创意评分', prompt: '给每个创意打分，选出最佳方案。' },
+            ],
+            'custom': []
+        };
+
+        let currentSteps = [];
+
+        // ═══ AI 专家席位动态管理 ═══
+        const AVAILABLE_MODELS = [
+            { id: 'deepseek-v3', name: 'DeepSeek V3', icon: 'fa-code', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+            { id: 'wenxin', name: '文心一言', icon: 'fa-brain', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600' },
+            { id: 'qianwen', name: '通义千问', icon: 'fa-cloud', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+            { id: 'gpt-4', name: 'GPT-4', icon: 'fa-microchip', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+            { id: 'claude', name: 'Claude', icon: 'fa-feather', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+            { id: 'gemini', name: 'Gemini', icon: 'fa-star', iconBg: 'bg-cyan-100', iconColor: 'text-cyan-600' },
+            { id: 'kimi', name: 'Kimi', icon: 'fa-moon', iconBg: 'bg-violet-100', iconColor: 'text-violet-600' },
+            { id: 'glm-4', name: 'GLM-4', icon: 'fa-bolt', iconBg: 'bg-rose-100', iconColor: 'text-rose-600' },
+        ];
+        const ROLE_PRESETS = [
+            { id: 'logic', name: '逻辑分析师', prompt: '你是逻辑分析专家，擅长拆解问题、识别因果和给出结构化推理。' },
+            { id: 'research', name: '资料整合', prompt: '你是资料整合专家，擅长提炼资料重点并形成可执行结论。' },
+            { id: 'creative', name: '创意发散', prompt: '你是创意发散专家，擅长提出新颖方案并拓展思路边界。' },
+            { id: 'general', name: '全局统筹', prompt: '你是全局统筹专家，擅长平衡方案质量、风险与执行成本。' },
+            { id: 'critic', name: '批判审查', prompt: '你是批判审查专家，擅长发现方案漏洞、提出反面论证。' },
+            { id: 'custom', name: '自定义角色', prompt: '' },
+        ];
+        let agentSeats = [
+            { modelId: 'deepseek-v3', roleId: 'logic', customPrompt: '', enabled: true },
+            { modelId: 'wenxin', roleId: 'research', customPrompt: '', enabled: true },
+        ];
+
+        function renderAgentSeats() {
+            const container = document.getElementById('ai-agent-list');
+            container.innerHTML = '';
+            agentSeats.forEach((seat, idx) => {
+                const model = AVAILABLE_MODELS.find(m => m.id === seat.modelId) || AVAILABLE_MODELS[0];
+                const role = ROLE_PRESETS.find(r => r.id === seat.roleId) || ROLE_PRESETS[0];
+                const isCustom = seat.roleId === 'custom';
+
+                const modelOpts = AVAILABLE_MODELS.map(m => `<option value="${m.id}" ${m.id === seat.modelId ? 'selected' : ''}>${m.name}</option>`).join('');
+                const roleOpts = ROLE_PRESETS.map(r => `<option value="${r.id}" ${r.id === seat.roleId ? 'selected' : ''}>${r.name}</option>`).join('');
+
+                container.innerHTML += `
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2" data-seat-idx="${idx}">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-8 h-8 rounded-full ${model.iconBg} flex items-center justify-center ${model.iconColor}"><i class="fa-solid ${model.icon}"></i></div>
+                                <select onchange="agentSeats[${idx}].modelId=this.value; renderAgentSeats()" class="text-sm font-bold text-slate-700 bg-transparent border-none outline-none cursor-pointer">${modelOpts}</select>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" ${seat.enabled ? 'checked' : ''} class="sr-only peer" onchange="agentSeats[${idx}].enabled=this.checked"
+                                        data-model-id="${seat.modelId}" data-role-template="${seat.roleId}" data-system-prompt="${(isCustom && seat.customPrompt ? seat.customPrompt : role.prompt).replace(/"/g, '&quot;')}">
+                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-slate-700"></div>
+                                </label>
+                                <button onclick="agentSeats.splice(${idx},1); renderAgentSeats()" class="text-slate-400 hover:text-red-500 transition text-xs p-1"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-slate-400 shrink-0">角色:</span>
+                            <select onchange="agentSeats[${idx}].roleId=this.value; renderAgentSeats()" class="text-xs text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 outline-none flex-1">${roleOpts}</select>
+                        </div>
+                        ${isCustom ? `<textarea placeholder="输入自定义系统提示词..." class="w-full text-xs border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 resize-none" rows="2" oninput="agentSeats[${idx}].customPrompt=this.value">${seat.customPrompt}</textarea>` : ''}
+                    </div>
+                `;
+            });
+        }
+
+        function addAgentSeat() {
+            const usedModels = agentSeats.map(s => s.modelId);
+            const next = AVAILABLE_MODELS.find(m => !usedModels.includes(m.id)) || AVAILABLE_MODELS[0];
+            agentSeats.push({ modelId: next.id, roleId: 'general', customPrompt: '', enabled: true });
+            renderAgentSeats();
+        }
+
+        renderAgentSeats();
+
+        // ═══ 人类队友席位管理 ═══
+        const HUMAN_ROLES = ['主持人', '记录员', '观察者', '参与者', '自定义'];
+        let humanSeats = [];
+
+        function renderHumanSeats() {
+            const container = document.getElementById('human-seat-list');
+            container.innerHTML = '';
+            if (humanSeats.length === 0) {
+                container.innerHTML = '<div class="text-xs text-slate-400 text-center py-2">暂未添加人类成员</div>';
+                return;
+            }
+            humanSeats.forEach((seat, idx) => {
+                const roleOpts = HUMAN_ROLES.map(r => `<option value="${r}" ${r === seat.role ? 'selected' : ''}>${r}</option>`).join('');
+                container.innerHTML += `
+                    <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
+                        <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                        <input type="text" value="${seat.name}" placeholder="输入姓名" oninput="humanSeats[${idx}].name=this.value" class="flex-1 text-sm font-medium text-slate-700 bg-transparent border-none outline-none">
+                        <select onchange="humanSeats[${idx}].role=this.value" class="text-xs text-slate-600 bg-white border border-slate-200 rounded px-2 py-1 outline-none">${roleOpts}</select>
+                        <button onclick="humanSeats.splice(${idx},1); renderHumanSeats()" class="text-slate-400 hover:text-red-500 transition text-xs p-1"><i class="fa-solid fa-xmark"></i></button>
+                    </div>`;
+            });
+        }
+
+        function addHumanSeat() {
+            humanSeats.push({ name: '', role: '参与者' });
+            renderHumanSeats();
+        }
+
+        renderHumanSeats();
+
+        // AI 智能生成流程 — 真实 API 调用
+        async function generateAIWorkflow() {
+            const btn = document.getElementById('ai-btn');
+            const topic = document.getElementById('topic-input').value.trim();
+            const container = document.getElementById('workflow-container');
+
+            if(!topic) {
+                alert('请输入研讨主题，AI 将根据主题设计流程。');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 思考中...';
+            container.innerHTML = '<div class="h-full flex flex-col items-center justify-center text-slate-400 space-y-4"><div class="w-12 h-12 rounded-full border-4 border-slate-200 border-t-blue-500 animate-spin"></div><p class="text-sm">正在分析主题...</p><p class="text-xs">设计协作环节 / 编写 Prompt / 分配时间</p></div>';
+
+            const availableTypes = Array.from(SUPPORTED_THINKLET_TYPES).join(', ');
+
+            try {
+                const fetchFn = Auth.isLoggedIn() ? Auth.apiCall : fetch;
+                const resp = await fetchFn('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: `请根据以下研讨主题设计一个3-6步的ThinkLets协作流程。\n\n主题："${topic}"\n\n可用ThinkLet类型：${availableTypes}\n\n请严格按JSON数组格式返回，不要用markdown代码块，不要加其他文字：\n[{"type":"ThinkLet类型","time":分钟数,"title":"环节标题","prompt":"该环节AI指令"}]\n\n设计原则：先发散再收敛再评估，每步5-20分钟，prompt紧扣主题，最后用Summary总结。`,
+                        model_id: 'deepseek-v3',
+                        history: [],
+                        system_prompt: '你是ThinkLets协作流程设计专家。直接返回JSON数组，不要任何解释和markdown符号。'
+                    }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    let content = data.content.trim();
+                    const jsonMatch = content.match(/\[[\s\S]*\]/);
+                    if (jsonMatch) {
+                        const steps = JSON.parse(jsonMatch[0]);
+                        currentSteps = steps.filter(s => thinklets[s.type]).map(s => ({
+                            type: s.type,
+                            time: Math.max(5, Math.min(30, parseInt(s.time) || 10)),
+                            title: String(s.title || '').substring(0, 50),
+                            prompt: String(s.prompt || ''),
+                        }));
+                        if (currentSteps.length === 0) throw new Error('流程为空');
+                    } else { throw new Error('格式不正确'); }
+                } else { throw new Error('API调用失败'); }
+            } catch (e) {
+                console.warn('AI设计失败，使用本地模板:', e.message);
+                currentSteps = [
+                    { type: 'FreeBrainstorm', time: 10, title: '场景定义与发散', prompt: `结合主题"${topic}"，列举可能的方向和场景。` },
+                    { type: 'FastFocus', time: 10, title: '快速聚焦核心方向', prompt: '对上述场景投票，保留/合并/淘汰。' },
+                    { type: 'BucketWalk', time: 10, title: '方案分类整理', prompt: '将保留的方案按类别归入不同桶中。' },
+                    { type: 'StrawPoll', time: 8, title: '优先级投票', prompt: '用预算点数给各方案打分排序。' },
+                    { type: 'FastFocus', time: 5, title: '生成行动报告', prompt: '根据投票结果汇总共识并形成执行清单。' },
+                ];
+            }
+
+            renderSteps();
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 智能设计';
+
+            const cards = document.querySelectorAll('.step-card');
+            cards.forEach((card, i) => {
+                setTimeout(() => {
+                    card.classList.add('ai-generating');
+                    setTimeout(() => card.classList.remove('ai-generating'), 1500);
+                }, i * 100);
+            });
+        }
+
+        function renderSteps() {
+            const container = document.getElementById('workflow-container');
+            container.innerHTML = '';
+            let totalTime = 0;
+
+            currentSteps.forEach((step, index) => {
+                totalTime += parseInt(step.time);
+                const tInfo = thinklets[step.type] || thinklets['FreeBrainstorm'];
+                const colorClasses = {
+                    'green': 'text-green-600 bg-green-100 border-green-200',
+                    'orange': 'text-teal-600 bg-teal-100 border-teal-200',
+                    'blue': 'text-blue-600 bg-blue-100 border-blue-200',
+                    'purple': 'text-purple-600 bg-purple-100 border-purple-200',
+                    'slate': 'text-slate-600 bg-slate-100 border-slate-200'
+                }[tInfo.color];
+
+                const html = `
+                    <div class="step-card relative pl-12 mb-4 group transition-all duration-500 ease-out transform translate-y-0 opacity-100">
+                        <div class="step-line"></div>
+                        <div class="absolute left-0 top-0 w-12 h-12 flex flex-col items-center z-10">
+                            <div class="w-8 h-8 rounded-full bg-white border-2 border-slate-300 text-slate-500 font-bold text-sm flex items-center justify-center shadow-sm group-hover:border-blue-500 group-hover:text-blue-600 transition">
+                                ${index + 1}
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all group-hover:border-blue-300">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex items-center gap-3">
+                                    <div class="px-2 py-1 rounded text-xs font-bold ${colorClasses} flex items-center gap-1">
+                                        <i class="fa-solid ${tInfo.icon}"></i> ${tInfo.label}
+                                    </div>
+                                    <input type="text" value="${step.title}" class="font-bold text-slate-800 bg-transparent px-1 rounded hover:bg-slate-50 border border-transparent hover:border-slate-200 outline-none w-48 md:w-64 transition">
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <div class="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-200">
+                                        <i class="fa-regular fa-clock text-slate-400 text-xs"></i>
+                                        <input type="number" value="${step.time}" onchange="updateTime()" class="w-8 bg-transparent text-right text-sm font-bold text-slate-700 outline-none">
+                                        <span class="text-xs text-slate-400">min</span>
+                                    </div>
+                                    <button onclick="removeStep(${index})" class="text-slate-300 hover:text-red-500 p-1 transition"><i class="fa-solid fa-trash-can"></i></button>
+                                </div>
+                            </div>
+                            
+                            <div class="relative">
+                                <textarea class="w-full bg-slate-50 text-sm text-slate-600 rounded-lg p-3 border border-slate-100 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 outline-none resize-none transition" rows="2">${step.prompt}</textarea>
+                                <div class="absolute bottom-2 right-2 text-[10px] text-slate-400 font-mono select-none">PROMPT</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+
+            document.getElementById('total-time').innerText = totalTime;
+        }
+
+        function loadTemplate() {
+            const select = document.getElementById('template-select');
+            currentSteps = JSON.parse(JSON.stringify(templates[select.value]));
+            renderSteps();
+        }
+
+        function addStep() {
+            // 弹出 ThinkLet 类型选择
+            const options = Object.entries(thinklets).map(([key, t]) =>
+                `<option value="${key}">${t.label} (${t.type})</option>`
+            ).join('');
+            const overlay = document.createElement('div');
+            overlay.className = 'fixed inset-0 bg-black/40 flex items-center justify-center z-50';
+            overlay.style.backdropFilter = 'blur(4px)';
+            overlay.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 p-6" onclick="event.stopPropagation()">
+                    <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <i class="fa-solid fa-circle-plus text-blue-500"></i> 添加新环节
+                    </h3>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-sm font-medium text-slate-600 mb-1 block">选择 ThinkLet 类型</label>
+                            <select id="add-step-type" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                                ${options}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-600 mb-1 block">环节标题</label>
+                            <input id="add-step-title" type="text" placeholder="例：头脑风暴 / 方案投票" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-slate-600 mb-1 block">时长 (分钟)</label>
+                            <input id="add-step-time" type="number" value="10" min="1" max="60" class="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-400 outline-none">
+                        </div>
+                    </div>
+                    <div class="flex gap-3 mt-5">
+                        <button onclick="this.closest('.fixed').remove()" class="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition">取消</button>
+                        <button onclick="confirmAddStep(this.closest('.fixed'))" class="flex-1 py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white rounded-lg font-semibold transition">确定添加</button>
+                    </div>
+                </div>
+            `;
+            overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+            document.body.appendChild(overlay);
+        }
+
+        function confirmAddStep(overlay) {
+            const type = document.getElementById('add-step-type').value;
+            const title = document.getElementById('add-step-title').value.trim() || (thinklets[type]?.label || '新环节');
+            const time = parseInt(document.getElementById('add-step-time').value) || 10;
+
+            currentSteps.push({ type, time, title, prompt: '' });
+            renderSteps();
+            overlay.remove();
+        }
+
+        function removeStep(index) {
+            currentSteps.splice(index, 1);
+            renderSteps();
+        }
+
+        function updateTime() {
+            let total = 0;
+            document.querySelectorAll('input[type="number"]').forEach(input => total += parseInt(input.value || 0));
+            document.getElementById('total-time').innerText = total;
+        }
+
+        window.onload = () => {
+            if (!Auth.isLoggedIn()) Auth.showAuthModal();
+            loadTemplate();
+        };
+
+        // ═══ 知识库文件管理 ═══
+        let roomKnowledgeFiles = [];
+
+        async function handleRoomKnowledgeFiles(files) {
+            if (!files || files.length === 0) return;
+            for (const file of Array.from(files)) {
+                if (file.size > 10 * 1024 * 1024) { alert(`文件 "${file.name}" 超过10MB限制`); continue; }
+                if (roomKnowledgeFiles.some(f => f.name === file.name)) { alert(`文件 "${file.name}" 已存在`); continue; }
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    const headers = {};
+                    const token = Auth.isLoggedIn() && localStorage.getItem('aicolab_token');
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    const resp = await fetch('/api/knowledge/extract', { method: 'POST', headers, body: formData });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        roomKnowledgeFiles.push({ name: file.name, size: file.size, type: file.type, text: data.text, charCount: data.char_count });
+                        alert(`已解析 "${file.name}"（${data.char_count} 字符）`);
+                    } else {
+                        const err = await resp.json().catch(() => ({ detail: '解析失败' }));
+                        alert(`${file.name}: ${err.detail || '解析失败'}`);
+                    }
+                } catch (e) { alert(`${file.name}: 上传失败 - ${e.message}`); }
+            }
+            renderRoomKnowledgeFiles();
+        }
+
+        function renderRoomKnowledgeFiles() {
+            const container = document.getElementById('room-knowledge-files');
+            const section = document.getElementById('room-knowledge-list');
+            if (roomKnowledgeFiles.length === 0) { section.classList.add('hidden'); return; }
+            section.classList.remove('hidden');
+            container.innerHTML = '';
+            roomKnowledgeFiles.forEach((f, i) => {
+                const sizeKB = Math.round(f.size / 1024);
+                container.innerHTML += `
+                    <div class="flex items-center gap-2 p-2 bg-white rounded-lg border border-slate-200 text-sm group">
+                        <i class="fa-solid fa-file-lines text-blue-500"></i>
+                        <span class="flex-1 truncate text-slate-700">${f.name}</span>
+                        <span class="text-xs text-slate-400">${sizeKB}KB · ${f.charCount}字</span>
+                        <button onclick="roomKnowledgeFiles.splice(${i},1); renderRoomKnowledgeFiles()" class="text-slate-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100"><i class="fa-solid fa-xmark"></i></button>
+                    </div>`;
+            });
+        }
+
+        async function createRoom() {
+            if (!Auth.requireAuth()) return;
+
+            const topic = document.getElementById('topic-input').value.trim();
+            if (!topic) { alert('请输入研讨主题'); return; }
+            const password = document.getElementById('room-password-input').value || null;
+
+            // 收集 AI 专家席位
+            const agentToggles = document.querySelectorAll('#ai-agent-list input[type="checkbox"]');
+            const agents = [];
+            agentToggles.forEach((cb) => {
+                if (cb.checked) {
+                    agents.push({
+                        model_id: cb.dataset.modelId,
+                        role_template: cb.dataset.roleTemplate || 'default',
+                        system_prompt: cb.dataset.systemPrompt || '',
+                        temperature: 0.7,
+                        max_tokens: 2000,
+                        is_active: true,
+                    });
+                }
+            });
+
+            if (agents.length === 0) {
+                alert('请至少启用 1 个 AI 专家席位');
+                return;
+            }
+
+            // 收集流程步骤
+            const invalidTypes = currentSteps
+                .map(s => s.type)
+                .filter(t => !SUPPORTED_THINKLET_TYPES.has(t));
+            if (invalidTypes.length > 0) {
+                alert('存在不支持的环节类型: ' + Array.from(new Set(invalidTypes)).join(', ') + '。请调整后重试。');
+                return;
+            }
+
+            const workflow = currentSteps.map((step, i) => ({
+                thinklet_type: step.type,
+                title: step.title,
+                prompt: step.prompt,
+                duration_minutes: parseInt(step.time) || 10,
+            }));
+
+            const btn = document.getElementById('create-room-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 创建中...';
+
+            try {
+                const resp = await Auth.apiCall('/api/rooms', {
+                    method: 'POST',
+                    body: JSON.stringify({ topic, password, agents, workflow }),
+                });
+                const rawText = await resp.text();
+                let data = {};
+                try { data = rawText ? JSON.parse(rawText) : {}; } catch { data = { detail: rawText }; }
+                if (!resp.ok) {
+                    alert('创建失败: ' + (data.detail || `HTTP ${resp.status}`));
+                    return;
+                }
+                if (!data.id) {
+                    alert('创建失败: 服务返回异常，请重试');
+                    return;
+                }
+                // 成功 → 保存流程到 localStorage 并跳转到时间轴页面
+                const roomCode = data.room_code;
+                // 存储knowledge供聊天页面使用
+                if (roomKnowledgeFiles.length > 0) {
+                    ScopedStorage.set('tw_room_knowledge', roomKnowledgeFiles, data.id);
+                }
+                // 存储workflow供时间轴页面使用
+                ScopedStorage.set('tw_room_workflow', {
+                    roomId: data.id,
+                    roomCode: roomCode,
+                    topic: topic,
+                    steps: currentSteps.map(s => ({
+                        ...s,
+                        thinklet: thinklets[s.type] || thinklets['FreeBrainstorm'],
+                    })),
+                    createdAt: new Date().toISOString(),
+                });
+                // 跳转到第一个 ThinkLet 步骤（流程导航由 workflow-nav.js 接管）
+                const firstStep = currentSteps[0];
+                const firstPage = thinklets[firstStep.type]?.page || '自由头脑风暴.html';
+                window.location.href = firstPage + '?roomId=' + encodeURIComponent(data.id);
+            } catch (e) {
+                alert('创建失败: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-rocket"></i> 立即创建';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,2608 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>多AI人机协作研讨平台 - 完整版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* 暗色侧边栏滚动条 */
+        .dark-scroll::-webkit-scrollbar { width: 5px; }
+        .dark-scroll::-webkit-scrollbar-track { background: transparent; }
+        .dark-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+        .dark-scroll::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        
+        .ai-bubble-enter { animation: slideIn 0.3s ease-out forwards; }
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 状态呼吸灯动画 */
+        .pulse-dot {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+        
+        /* 模态框动画 */
+        .modal-overlay {
+            backdrop-filter: blur(4px);
+            animation: fadeIn 0.2s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-content {
+            animation: slideUp 0.3s ease-out;
+        }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* 抽屉收缩动画 */
+        .drawer-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            overflow: hidden;
+            transition: width 0.3s ease-in-out;
+        }
+        .drawer-expanded {
+            width: 18rem !important;
+            transition: width 0.3s ease-in-out;
+        }
+        .drawer-toggle-btn {
+            position: fixed;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 15;
+            transition: all 0.3s ease;
+        }
+        
+        /* 聊天区域扩展 */
+        .chat-expanded {
+            margin-right: 0 !important;
+            transition: margin-right 0.3s ease-in-out;
+        }
+        .chat-normal {
+            transition: margin-right 0.3s ease-in-out;
+        }
+        .mention-item { padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .mention-item:hover { background: #f1f5f9; border-radius: 8px; }
+        .mention-tag { background: #dbeafe; color: #1d4ed8; padding: 0 4px; border-radius: 4px; font-weight: 600; }
+        
+        /* 左侧栏收缩 */
+        .left-sidebar-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            overflow: hidden;
+            padding: 0 !important;
+        }
+        .left-sidebar-collapsed .sidebar-label,
+        .left-sidebar-collapsed .p-4,
+        .left-sidebar-collapsed .px-4 { display: none; }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col md:flex-row text-slate-800 font-sans overflow-hidden">
+
+    <aside id="left-sidebar" class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 hidden md:flex z-20 shadow-xl" style="transition: width 0.3s ease, min-width 0.3s ease;">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-700 bg-slate-900">
+            <div class="flex items-center">
+                <div class="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center mr-3 shadow-lg shadow-slate-800/30">
+                    <i class="fa-solid fa-diagram-project text-white text-sm"></i>
+                </div>
+                <h1 class="font-bold text-lg tracking-wide sidebar-label">AI Co-Lab</h1>
+            </div>
+            <button onclick="toggleLeftSidebar()" class="text-slate-400 hover:text-white transition p-1 rounded hover:bg-slate-700" title="收起侧栏">
+                <i id="left-sidebar-icon" class="fa-solid fa-angles-left text-sm"></i>
+            </button>
+        </div>
+
+        <div class="p-4">
+            <button onclick="resetChat()" class="w-full bg-slate-800 hover:bg-slate-700 text-white py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                <i class="fa-solid fa-sparkles"></i>
+                <span class="font-medium">开启新研讨</span>
+            </button>
+        </div>
+
+        <div class="px-4 py-2">
+            <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-3 px-2">协作空间</div>
+            <a href="创建高级房间.html" class="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition mb-1 group block">
+                <i class="fa-solid fa-compass text-slate-500 group-hover:text-blue-400"></i>
+                <span>创建高级房间</span>
+            </a>
+            <button onclick="openJoinRoomModal()" class="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+                <i class="fa-solid fa-key text-slate-500 group-hover:text-blue-400"></i>
+                <span>输入 ID 加入</span>
+            </button>
+        </div>
+
+        <div class="px-4 py-2">
+            <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-3 px-2">ThinkLet 工具</div>
+            <div class="space-y-1">
+                <button onclick="openThinkLetWithRoom('思维跳跃.html')" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+                    <i class="fa-solid fa-shuffle text-green-400"></i>
+                    <span>LeafHopper 思维跳跃</span>
+                </button>
+                <button onclick="openThinkLetWithRoom('快速聚焦.html')" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+                    <i class="fa-solid fa-crosshairs text-blue-400"></i>
+                    <span>FastFocus 快速聚焦</span>
+                </button>
+                <button onclick="openThinkLetWithRoom('水桶漫步.html')" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+                    <i class="fa-solid fa-sitemap text-indigo-400"></i>
+                    <span>BucketWalk 水桶漫步</span>
+                </button>
+                <button onclick="openThinkLetWithRoom('米花拾掇.html')" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+                    <i class="fa-solid fa-filter-circle-xmark text-teal-400"></i>
+                    <span>PopcornSort 米花拾掇</span>
+                </button>
+                <button onclick="openThinkLetWithRoom('麦秆投票.html')" class="block w-full text-left py-2 px-3 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white flex items-center gap-3 transition group">
+                    <i class="fa-solid fa-scale-unbalanced text-blue-400"></i>
+                    <span>StrawPoll 麦秆投票</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-4 py-2 custom-scroll dark-scroll">
+            <div class="text-xs text-slate-400 uppercase font-bold tracking-wider mb-3 px-2 mt-4">我的房间</div>
+            <div id="my-rooms-list" class="space-y-1">
+                <!-- 由 JS 动态渲染 -->
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-slate-800 bg-slate-900">
+            <div class="flex items-center gap-3 cursor-pointer hover:bg-slate-800 p-2 rounded-lg transition" onclick="Auth.isLoggedIn() ? undefined : Auth.showAuthModal()">
+                <div id="user-profile-avatar" class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center text-xs font-bold ring-2 ring-slate-700 text-white">?</div>
+                <div class="flex-1 min-w-0">
+                    <div id="user-profile-name" class="text-sm font-medium truncate text-white">未登录</div>
+                    <div id="user-profile-role" class="text-xs text-slate-400">点击登录</div>
+                </div>
+                <button onclick="event.stopPropagation(); if(Auth.isLoggedIn()) Auth.logout();" class="text-slate-500 hover:text-red-400 transition text-xs" title="退出登录">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
+        </div>
+    </aside>
+
+    <main id="chat-main" class="flex-1 flex flex-col h-full relative bg-white min-w-0 chat-normal">
+        
+        <header class="md:hidden bg-white border-b p-4 flex justify-between items-center z-10 sticky top-0">
+            <div class="font-bold text-lg text-slate-800">Multi-AI System</div>
+            <button class="text-slate-600"><i class="fa-solid fa-bars"></i></button>
+        </header>
+
+        <div id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-10 scroll-smooth">
+            
+            <div id="welcome-screen" class="h-full flex flex-col items-center justify-center text-center max-w-3xl mx-auto space-y-8 fade-in -mt-10">
+                <div class="space-y-4">
+                    <div class="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-blue-50 text-blue-600 text-4xl mb-2 shadow-sm transform rotate-3">
+                        <i class="fa-solid fa-network-wired text-sm"></i>
+                    </div>
+                    <h2 class="text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight">多AI人机协作决策平台</h2>
+                    <p class="text-slate-500 text-lg max-w-lg mx-auto leading-relaxed">
+                        基于 Multi-Agent 架构，集成 DeepSeek、千帆等大模型。<br>
+                        支持头脑风暴、投票排序与多角色研讨。
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-2xl text-left">
+                    <button onclick="window.location.href='创建高级房间.html?topic=' + encodeURIComponent('分析元宇宙如何赋能数字经济的发展路径')" class="p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-md transition group">
+                        <div class="font-semibold text-slate-700 group-hover:text-blue-600 mb-1"><i class="fa-solid fa-microscope mr-2 text-blue-400"></i>学术研讨</div>
+                        <div class="text-xs text-slate-400">"分析元宇宙如何赋能数字经济的发展路径..."</div>
+                    </button>
+                    <button onclick="window.location.href='创建高级房间.html?topic=' + encodeURIComponent('结合现状分析企业的电商竞争差异化策略')" class="p-4 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:shadow-md transition group">
+                        <div class="font-semibold text-slate-700 group-hover:text-blue-600 mb-1"><i class="fa-solid fa-chess mr-2 text-red-400"></i>商业策略</div>
+                        <div class="text-xs text-slate-400">"结合现状分析企业的电商竞争差异化策略..."</div>
+                    </button>
+                </div>
+            </div>
+
+            <div id="chat-content" class="hidden max-w-3xl mx-auto space-y-8">
+                </div>
+        </div>
+
+        <div class="bg-white/90 backdrop-blur-sm border-t border-slate-100 p-4 lg:p-6 flex-shrink-0 z-20">
+            <div class="max-w-3xl mx-auto space-y-4">
+                
+                <div id="active-ai-bar" class="flex flex-wrap items-center gap-2 text-xs">
+                    <span class="text-slate-400 font-bold uppercase tracking-wider mr-1">Active AI:</span>
+                </div>
+
+                <div class="relative shadow-lg shadow-slate-200/50 rounded-2xl border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
+                    <div id="mention-dropdown" class="absolute bottom-full left-0 mb-1 w-64 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto z-30 hidden"></div>
+                    <textarea id="user-input" rows="1" placeholder="发送消息给 AI 队友..." class="w-full py-3.5 pl-5 pr-14 bg-transparent border-none rounded-2xl resize-none focus:ring-0 text-slate-700 placeholder-slate-400 leading-relaxed" oninput="this.style.height = ''; this.style.height = this.scrollHeight + 'px'" style="min-height: 52px; max-height: 150px;" onkeydown="handleEnter(event)"></textarea>
+                    
+                    <button onclick="sendMessage()" class="absolute right-2 bottom-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl w-9 h-9 flex items-center justify-center transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md">
+                        <i class="fa-solid fa-paper-plane text-sm"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <aside id="member-drawer" class="w-72 bg-white border-l border-slate-200 flex flex-col hidden lg:flex shadow-[0_0_15px_rgba(0,0,0,0.03)] z-10 drawer-expanded">
+        
+        <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100">
+            <h2 class="font-bold text-slate-800">当前房间成员</h2>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
+                </div>
+                <div class="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full cursor-pointer" onclick="toggleTimerControl()">
+                    <i class="fa-solid fa-clock"></i>
+                    <span id="room-timer">00:00:00</span>
+                </div>
+                <button onclick="toggleDrawer()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition" title="收起面板">
+                    <i id="drawer-icon" class="fa-solid fa-angles-right text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-2">
+            
+            <div class="mb-6">
+                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span id="ai-member-count">AI 队友 (0)</span>
+                    <i class="fa-solid fa-robot opacity-50"></i>
+                </div>
+                <div id="ai-member-list" class="space-y-1"></div>
+                <button onclick="openAddAIModal()" class="w-full mt-2 py-2.5 px-3 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 transition flex items-center justify-center gap-2 text-sm font-medium group">
+                    <div class="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-blue-200 flex items-center justify-center transition">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                    </div>
+                    <span>添加 AI 成员</span>
+                </button>
+            </div>
+
+            <div class="border-t border-slate-100 my-2 mx-3"></div>
+
+            <div class="mb-4">
+                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span id="human-member-count">人类团队 (0)</span>
+                    <i class="fa-solid fa-user-group opacity-50"></i>
+                </div>
+                <div id="human-member-list" class="space-y-1"></div>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-slate-100">
+            <button onclick="openInviteModal()" class="w-full py-2.5 rounded-lg border border-dashed border-slate-300 text-slate-500 text-sm font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-user-plus"></i>
+                邀请新成员
+            </button>
+        </div>
+    </aside>
+
+    <!-- 邀请新成员模态框 -->
+    <div id="invite-modal" class="fixed inset-0 bg-black/40 modal-overlay hidden items-center justify-center z-50" onclick="closeInviteModal(event)">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4" onclick="event.stopPropagation()">
+            <!-- 模态框头部 -->
+            <div class="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-5 rounded-t-2xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <i class="fa-solid fa-paper-plane text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold">邀请成员加入房间</h3>
+                            <p class="text-xs text-blue-100 mt-0.5">分享以下信息邀请新成员</p>
+                        </div>
+                    </div>
+                    <button onclick="closeInviteModal()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 模态框内容 -->
+            <div class="p-6 space-y-5">
+                <!-- 房间号 -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <i class="fa-solid fa-hashtag text-blue-500"></i>
+                        房间号
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-4 py-3 font-mono text-2xl font-bold text-slate-800 tracking-wider text-center">
+                            <span id="room-number">328 456 789</span>
+                        </div>
+                        <button onclick="copyRoomNumber()" class="px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-copy"></i>
+                            <span class="hidden sm:inline">复制</span>
+                        </button>
+                    </div>
+                    <p class="text-xs text-slate-500 flex items-start gap-1.5">
+                        <i class="fa-solid fa-circle-info text-blue-500 mt-0.5"></i>
+                        <span>新成员可通过"输入 ID 加入"功能使用此房间号加入</span>
+                    </p>
+                </div>
+
+                <!-- 邀请链接 -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <i class="fa-solid fa-link text-red-500"></i>
+                        邀请链接
+                    </label>
+                    <div class="flex items-center gap-2">
+                        <div class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-4 py-2.5 text-sm text-slate-700 truncate">
+                            <span id="invite-link">https://aicolab.app/join?room=328456789</span>
+                        </div>
+                        <button onclick="copyInviteLink()" class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-medium transition flex items-center gap-2 shadow-sm">
+                            <i class="fa-solid fa-copy"></i>
+                            <span class="hidden sm:inline">复制</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 房间密码（可选） -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                            <i class="fa-solid fa-lock text-slate-500"></i>
+                            房间密码
+                            <span class="text-xs font-normal text-slate-400">(可选)</span>
+                        </label>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="password-toggle" class="sr-only peer" onchange="togglePassword()">
+                            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-slate-700"></div>
+                        </label>
+                    </div>
+                    <div id="password-section" class="hidden">
+                        <div class="flex items-center gap-2">
+                            <input type="text" id="room-password" value="AB68CD" readonly class="flex-1 bg-slate-50 border-2 border-slate-200 rounded-lg px-4 py-2.5 font-mono text-lg font-bold text-slate-800 tracking-wider text-center">
+                            <button onclick="copyPassword()" class="px-4 py-2.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg font-medium transition flex items-center gap-2 shadow-sm">
+                                <i class="fa-solid fa-copy"></i>
+                                <span class="hidden sm:inline">复制</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="border-t border-slate-200 my-4"></div>
+
+                <!-- 快捷分享 -->
+                <div class="space-y-3">
+                    <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <i class="fa-solid fa-share-nodes text-red-500"></i>
+                        快捷分享
+                    </label>
+                    <div class="grid grid-cols-3 gap-3">
+                        <button onclick="shareToWeChat()" class="p-4 border-2 border-slate-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition group">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-green-100 group-hover:bg-green-500 flex items-center justify-center transition">
+                                <i class="fa-brands fa-weixin text-2xl text-green-600 group-hover:text-white transition"></i>
+                            </div>
+                            <div class="text-xs font-medium text-slate-600 group-hover:text-green-600">微信</div>
+                        </button>
+                        <button onclick="shareToQQ()" class="p-4 border-2 border-slate-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition group">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-blue-100 group-hover:bg-blue-500 flex items-center justify-center transition">
+                                <i class="fa-brands fa-qq text-2xl text-blue-600 group-hover:text-white transition"></i>
+                            </div>
+                            <div class="text-xs font-medium text-slate-600 group-hover:text-blue-600">QQ</div>
+                        </button>
+                        <button onclick="shareByEmail()" class="p-4 border-2 border-slate-200 rounded-xl hover:border-red-400 hover:bg-red-50 transition group">
+                            <div class="w-12 h-12 mx-auto mb-2 rounded-xl bg-red-100 group-hover:bg-red-500 flex items-center justify-center transition">
+                                <i class="fa-solid fa-envelope text-2xl text-red-600 group-hover:text-white transition"></i>
+                            </div>
+                            <div class="text-xs font-medium text-slate-600 group-hover:text-red-600">邮件</div>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 二维码 -->
+                <div class="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-4 flex items-start gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid fa-expand text-white"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="text-sm font-semibold text-slate-800 mb-1">扫码加入</div>
+                        <div class="text-xs text-slate-600 leading-relaxed">点击下方按钮生成二维码，他人扫码即可快速加入房间</div>
+                        <button onclick="generateQRCode()" class="mt-3 px-4 py-2 bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 text-xs font-semibold rounded-lg transition flex items-center gap-2">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            生成二维码
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模态框底部 -->
+            <div class="bg-slate-50 border-t border-slate-200 px-6 py-4 rounded-b-2xl flex gap-3">
+                <button onclick="copyAllInviteInfo()" class="flex-1 py-2.5 px-4 bg-gradient-to-r from-slate-800 to-slate-700 text-white font-semibold rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-clipboard-list"></i>
+                    复制全部信息
+                </button>
+                <button onclick="closeInviteModal()" class="py-2.5 px-6 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-white transition">
+                    完成
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 抽屉收缩时的展开按钮 -->
+    <button id="drawer-toggle-btn" onclick="toggleDrawer()" class="drawer-toggle-btn hidden w-10 h-20 bg-slate-800 hover:bg-slate-700 text-white rounded-l-xl shadow-lg flex-col items-center justify-center gap-1 transition-all" title="展开成员面板">
+        <i class="fa-solid fa-users text-sm"></i>
+        <i class="fa-solid fa-angles-left text-xs"></i>
+    </button>
+
+    <!-- 已采纳意见浮动按钮 -->
+    <button onclick="toggleAdoptedPanel()" class="fixed bottom-24 right-8 w-14 h-14 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white rounded-full shadow-2xl flex items-center justify-center transition-all hover:scale-110 z-30">
+        <i class="fa-solid fa-bookmark text-xl"></i>
+        <span id="adopted-badge" class="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-lg hidden">0</span>
+    </button>
+
+    <!-- 已采纳意见侧边栏模板 -->
+    <div id="adopted-panel" class="fixed top-0 right-0 h-full w-96 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-40 flex flex-col">
+        <!-- 头部 -->
+        <div class="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-5 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <i class="fa-solid fa-bookmark text-xl"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold">已采纳意见</h3>
+                    <p id="adopted-count" class="text-xs text-emerald-100">共 0 条</p>
+                </div>
+            </div>
+            <button onclick="toggleAdoptedPanel()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+        </div>
+
+        <!-- 筛选栏 -->
+        <div class="px-6 py-3 border-b border-slate-200 flex items-center justify-between">
+            <div id="adopted-filter-bar" class="flex items-center gap-2">
+                <button class="px-3 py-1.5 text-xs font-medium rounded-lg bg-emerald-500 text-white">全部</button>
+            </div>
+            <button onclick="clearAllAdoptions()" class="text-xs text-red-500 hover:text-red-700 font-medium">
+                <i class="fa-solid fa-trash-can mr-1"></i>清空
+            </button>
+        </div>
+
+        <!-- 意见列表 -->
+        <div id="adopted-opinions-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div id="adopted-empty" class="h-full flex items-center justify-center text-slate-400 text-sm">
+                <div class="text-center"><i class="fa-regular fa-bookmark text-3xl mb-3 block opacity-50"></i>暂无采纳意见<br><span class="text-xs">在聊天中点击"采纳"按钮添加</span></div>
+            </div>
+        </div>
+
+        <!-- 底部操作区 -->
+        <div class="border-t border-slate-200 p-4 space-y-3">
+            <!-- AI 一键提取观点 -->
+            <button onclick="extractOpinionsFromChat()" class="w-full py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                AI 一键提取观点
+            </button>
+            <!-- ThinkLet 跳转按钮 -->
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="sendToThinkLet('快速聚焦')" class="py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-crosshairs"></i>快速聚焦
+                </button>
+                <button onclick="sendToThinkLet('水桶漫步')" class="py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-bucket"></i>水桶漫步
+                </button>
+                <button onclick="sendToThinkLet('米花拾掇')" class="py-2 px-3 bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-layer-group"></i>米花拾掇
+                </button>
+                <button onclick="sendToThinkLet('麦秆投票')" class="py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
+                    <i class="fa-solid fa-chart-bar"></i>麦秆投票
+                </button>
+            </div>
+            <!-- 导出 -->
+            <button onclick="exportAdoptedOpinions()" class="w-full py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white font-semibold rounded-lg transition flex items-center justify-center gap-2">
+                <i class="fa-solid fa-download"></i>
+                导出采纳意见
+            </button>
+        </div>
+    </div>
+
+    <!-- AI 角色自定义模态框 -->
+    <div id="ai-custom-modal" class="fixed inset-0 bg-black/40 modal-overlay hidden items-center justify-center z-50" onclick="closeAICustomModal(event)">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <!-- 模态框头部 -->
+            <div class="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 rounded-t-2xl flex items-center justify-between z-10">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-lg">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800" id="modal-ai-name">自定义 AI 角色</h3>
+                        <p class="text-xs text-slate-500">配置模型参数和角色模板</p>
+                    </div>
+                </div>
+                <button onclick="closeAICustomModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- 模态框内容 -->
+            <div class="p-6 space-y-6">
+                <!-- 模型选择 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-bold text-slate-700">
+                        <i class="fa-solid fa-microchip mr-2 text-blue-500"></i>选择模型
+                    </label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="deepseek-v3" checked class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-blue-300 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <i class="fa-solid fa-code"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">DeepSeek V3</div>
+                                        <div class="text-xs text-slate-500">强大推理能力</div>
+                                    </div>
+                                    <i class="fa-solid fa-circle-check text-blue-500 text-lg hidden peer-checked:block"></i>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="wenxin" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-indigo-300 peer-checked:border-indigo-500 peer-checked:bg-indigo-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                        <i class="fa-solid fa-brain"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">文心一言</div>
+                                        <div class="text-xs text-slate-500">中文语义理解</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="qianwen" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-blue-300 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <i class="fa-solid fa-cloud"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">通义千问</div>
+                                        <div class="text-xs text-slate-500">创意生成</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="gpt-4" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-green-300 peer-checked:border-green-500 peer-checked:bg-green-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
+                                        <i class="fa-solid fa-microchip"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">GPT-4</div>
+                                        <div class="text-xs text-slate-500">通用能力</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="claude" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-blue-300 peer-checked:border-blue-500 peer-checked:bg-blue-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
+                                        <i class="fa-solid fa-feather"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">Claude</div>
+                                        <div class="text-xs text-slate-500">长文本分析</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="gemini" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-cyan-300 peer-checked:border-cyan-500 peer-checked:bg-cyan-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center text-cyan-600">
+                                        <i class="fa-solid fa-star"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">Gemini</div>
+                                        <div class="text-xs text-slate-500">多模态推理</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="kimi" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-violet-300 peer-checked:border-violet-500 peer-checked:bg-violet-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center text-violet-600">
+                                        <i class="fa-solid fa-moon"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">Kimi</div>
+                                        <div class="text-xs text-slate-500">超长上下文</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                        <label class="relative cursor-pointer">
+                            <input type="radio" name="ai-model" value="glm-4" class="peer sr-only">
+                            <div class="p-4 border-2 border-slate-200 rounded-xl hover:border-rose-300 peer-checked:border-rose-500 peer-checked:bg-rose-50 transition">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-lg bg-rose-100 flex items-center justify-center text-rose-600">
+                                        <i class="fa-solid fa-bolt"></i>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="font-bold text-slate-800">GLM-4</div>
+                                        <div class="text-xs text-slate-500">中文对话</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 角色模板选择 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-bold text-slate-700">
+                        <i class="fa-solid fa-user-gear mr-2 text-red-500"></i>角色模板
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition">
+                            <input type="radio" name="ai-template" value="default" checked class="w-4 h-4 text-blue-600">
+                            <div class="flex-1">
+                                <div class="font-semibold text-slate-700">默认模板</div>
+                                <div class="text-xs text-slate-500">平衡的通用助手,适合大多数场景</div>
+                            </div>
+                            <span class="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded">推荐</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition">
+                            <input type="radio" name="ai-template" value="analyst" class="w-4 h-4 text-blue-600">
+                            <div class="flex-1">
+                                <div class="font-semibold text-slate-700">分析专家</div>
+                                <div class="text-xs text-slate-500">深度分析、数据洞察、逻辑推理</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition">
+                            <input type="radio" name="ai-template" value="creative" class="w-4 h-4 text-blue-600">
+                            <div class="flex-1">
+                                <div class="font-semibold text-slate-700">创意顾问</div>
+                                <div class="text-xs text-slate-500">头脑风暴、创新思维、多角度思考</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition">
+                            <input type="radio" name="ai-template" value="expert" class="w-4 h-4 text-blue-600">
+                            <div class="flex-1">
+                                <div class="font-semibold text-slate-700">领域专家</div>
+                                <div class="text-xs text-slate-500">专业知识、实践经验、深度见解</div>
+                            </div>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border-2 border-slate-200 rounded-lg hover:bg-slate-50 cursor-pointer transition">
+                            <input type="radio" name="ai-template" value="custom" class="w-4 h-4 text-blue-600">
+                            <div class="flex-1">
+                                <div class="font-semibold text-slate-700">自定义角色</div>
+                                <div class="text-xs text-slate-500">完全自定义系统提示词和行为模式</div>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- 自定义提示词(仅在选择自定义角色时显示) -->
+                <div id="custom-prompt-section" class="space-y-3 hidden">
+                    <label class="block text-sm font-bold text-slate-700">
+                        <i class="fa-solid fa-message-lines mr-2 text-blue-500"></i>自定义系统提示词
+                    </label>
+                    <textarea id="custom-prompt" rows="4" placeholder="例如:你是一个专业的市场营销顾问,擅长品牌策略和用户增长..." class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition resize-none text-sm"></textarea>
+                </div>
+
+                <!-- 知识库文件上传 -->
+                <div class="space-y-3">
+                    <label class="block text-sm font-bold text-slate-700">
+                        <i class="fa-solid fa-database mr-2 text-emerald-500"></i>知识库文件
+                        <span class="text-xs font-normal text-slate-500 ml-2">为AI提供专业领域知识</span>
+                    </label>
+                    
+                    <!-- 文件上传区域 -->
+                    <div class="border-2 border-dashed border-slate-300 rounded-xl p-6 hover:border-blue-400 hover:bg-blue-50/30 transition cursor-pointer" onclick="document.getElementById('knowledge-file-input').click()">
+                        <input type="file" id="knowledge-file-input" class="hidden" multiple accept=".pdf,.txt,.doc,.docx,.md,.json" onchange="handleKnowledgeFiles(this.files)">
+                        <div class="text-center">
+                            <div class="w-12 h-12 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <i class="fa-solid fa-cloud-arrow-up text-emerald-600 text-xl"></i>
+                            </div>
+                            <p class="text-sm font-medium text-slate-700 mb-1">点击上传或拖拽文件到此处</p>
+                            <p class="text-xs text-slate-500">支持 PDF、TXT、Word、Markdown、JSON 格式</p>
+                        </div>
+                    </div>
+
+                    <!-- 已上传文件列表 -->
+                    <div id="knowledge-files-list" class="space-y-2 hidden">
+                        <div class="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">已上传文件</div>
+                        <div id="files-container" class="space-y-2"></div>
+                    </div>
+                </div>
+
+                <!-- 高级参数 -->
+                <div class="space-y-3">
+                    <button onclick="toggleAdvancedSettings()" class="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-blue-600 transition">
+                        <i id="advanced-icon" class="fa-solid fa-chevron-right text-xs transition-transform"></i>
+                        <span>高级参数设置</span>
+                    </button>
+                    <div id="advanced-settings" class="hidden space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-medium text-slate-700">温度 (Temperature)</label>
+                                <span id="temp-value" class="text-sm font-bold text-blue-600">0.7</span>
+                            </div>
+                            <input type="range" min="0" max="2" step="0.1" value="0.7" class="w-full" oninput="document.getElementById('temp-value').textContent = this.value">
+                            <div class="flex justify-between text-xs text-slate-500 mt-1">
+                                <span>保守</span>
+                                <span>创新</span>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex justify-between items-center mb-2">
+                                <label class="text-sm font-medium text-slate-700">最大输出长度</label>
+                                <span id="max-tokens-value" class="text-sm font-bold text-blue-600">2000</span>
+                            </div>
+                            <input type="range" min="500" max="4000" step="100" value="2000" class="w-full" oninput="document.getElementById('max-tokens-value').textContent = this.value">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 模态框底部 -->
+            <div class="sticky bottom-0 bg-slate-50 border-t border-slate-200 px-6 py-4 rounded-b-2xl flex gap-3">
+                <button onclick="closeAICustomModal()" class="flex-1 py-2.5 px-4 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-white transition">
+                    取消
+                </button>
+                <button onclick="saveAICustomSettings()" class="flex-1 py-2.5 px-4 bg-gradient-to-r from-slate-800 to-slate-700 text-white font-semibold rounded-lg hover:shadow-lg transition">
+                    <i class="fa-solid fa-check mr-2"></i>保存配置
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 输入 ID 加入模态框 -->
+    <div id="join-room-modal" class="fixed inset-0 bg-black/40 modal-overlay hidden items-center justify-center z-50" onclick="closeJoinRoomModal(event)">
+        <div class="modal-content bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4" onclick="event.stopPropagation()">
+            <div class="bg-gradient-to-r from-slate-800 to-slate-700 text-white px-6 py-5 rounded-t-2xl">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <i class="fa-solid fa-fingerprint text-xl"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold">加入协作房间</h3>
+                            <p class="text-xs text-indigo-100 mt-0.5">输入房间号或邀请链接加入</p>
+                        </div>
+                    </div>
+                    <button onclick="closeJoinRoomModal()" class="w-8 h-8 rounded-lg hover:bg-white/10 flex items-center justify-center transition">
+                        <i class="fa-solid fa-xmark text-lg"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="p-6 space-y-5">
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <i class="fa-solid fa-hashtag text-indigo-500"></i> 房间号
+                    </label>
+                    <input type="text" id="join-room-id" placeholder="输入 9 位房间号，如 328456789" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition text-lg font-mono tracking-wider text-center" maxlength="12" oninput="formatRoomInput(this)">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <i class="fa-solid fa-lock text-slate-500"></i> 房间密码 <span class="text-xs font-normal text-slate-400">(如有)</span>
+                    </label>
+                    <input type="text" id="join-room-password" placeholder="无密码可留空" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition text-sm">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                        <i class="fa-solid fa-user text-green-500"></i> 你的昵称
+                    </label>
+                    <input type="text" id="join-nickname" placeholder="输入你的昵称" value="" class="w-full px-4 py-3 border-2 border-slate-200 rounded-xl focus:border-green-500 focus:ring-2 focus:ring-green-200 transition text-sm">
+                </div>
+            </div>
+            <div class="bg-slate-50 border-t border-slate-200 px-6 py-4 rounded-b-2xl flex gap-3">
+                <button onclick="closeJoinRoomModal()" class="flex-1 py-2.5 px-4 border-2 border-slate-300 text-slate-700 font-semibold rounded-lg hover:bg-white transition">取消</button>
+                <button onclick="joinRoom()" class="flex-1 py-2.5 px-4 bg-gradient-to-r from-slate-800 to-slate-700 text-white font-semibold rounded-lg hover:shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-right-to-bracket"></i> 加入房间
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 计时器控制弹出框 -->
+    <div id="timer-control" class="fixed top-20 right-80 bg-white rounded-2xl shadow-2xl border border-slate-200 w-72 hidden z-50">
+        <div class="p-4 border-b border-slate-100">
+            <h4 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-clock text-slate-500"></i> 研讨计时器</h4>
+        </div>
+        <div class="p-4 space-y-4">
+            <div class="text-center">
+                <div id="timer-display" class="text-4xl font-mono font-bold text-slate-800">00:00:00</div>
+                <div id="timer-status-text" class="text-xs text-slate-400 mt-1">未开始</div>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="startTimer()" id="timer-start-btn" class="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-play"></i> 开始
+                </button>
+                <button onclick="pauseTimer()" id="timer-pause-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-1 hidden">
+                    <i class="fa-solid fa-pause"></i> 暂停
+                </button>
+                <button onclick="resetTimer()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1">
+                    <i class="fa-solid fa-rotate-left"></i> 重置
+                </button>
+            </div>
+            <div>
+                <label class="text-xs text-slate-500 font-medium">预设时长 (分钟)</label>
+                <div class="flex gap-2 mt-1.5">
+                    <button onclick="setTimerPreset(5)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">5 min</button>
+                    <button onclick="setTimerPreset(10)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">10 min</button>
+                    <button onclick="setTimerPreset(15)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">15 min</button>
+                    <button onclick="setTimerPreset(30)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">30 min</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══ 计时器 ═══════════════════════════════════════════
+        let timerSeconds = 0;
+        let timerInterval = null;
+        let timerRunning = false;
+        let timerMode = 'up'; // 'up' = 正计时, 'down' = 倒计时
+        let timerTargetSeconds = 0;
+
+        function formatTime(sec) {
+            const h = String(Math.floor(sec / 3600)).padStart(2, '0');
+            const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
+            const s = String(sec % 60).padStart(2, '0');
+            return `${h}:${m}:${s}`;
+        }
+
+        function updateTimerUI() {
+            const display = formatTime(timerSeconds);
+            document.getElementById('room-timer').textContent = display;
+            const timerDisplay = document.getElementById('timer-display');
+            if (timerDisplay) timerDisplay.textContent = display;
+        }
+
+        function startTimer() {
+            if (timerRunning) return;
+            timerRunning = true;
+            document.getElementById('timer-start-btn').classList.add('hidden');
+            document.getElementById('timer-pause-btn').classList.remove('hidden');
+            document.getElementById('timer-status-text').textContent = timerMode === 'down' ? '倒计时进行中' : '正计时中';
+            timerInterval = setInterval(() => {
+                if (timerMode === 'down') {
+                    timerSeconds--;
+                    if (timerSeconds <= 0) {
+                        timerSeconds = 0;
+                        pauseTimer();
+                        document.getElementById('timer-status-text').textContent = '时间到！';
+                        showToast('⏰ 研讨时间到！');
+                    }
+                } else {
+                    timerSeconds++;
+                }
+                updateTimerUI();
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            timerRunning = false;
+            clearInterval(timerInterval);
+            document.getElementById('timer-start-btn').classList.remove('hidden');
+            document.getElementById('timer-pause-btn').classList.add('hidden');
+            document.getElementById('timer-status-text').textContent = '已暂停';
+        }
+
+        function resetTimer() {
+            pauseTimer();
+            timerSeconds = 0;
+            timerMode = 'up';
+            updateTimerUI();
+            document.getElementById('timer-status-text').textContent = '未开始';
+        }
+
+        function setTimerPreset(minutes) {
+            pauseTimer();
+            timerMode = 'down';
+            timerSeconds = minutes * 60;
+            timerTargetSeconds = timerSeconds;
+            updateTimerUI();
+            document.getElementById('timer-status-text').textContent = `已设置 ${minutes} 分钟倒计时`;
+        }
+
+        function toggleTimerControl() {
+            const ctrl = document.getElementById('timer-control');
+            ctrl.classList.toggle('hidden');
+        }
+        document.addEventListener('click', (e) => {
+            const ctrl = document.getElementById('timer-control');
+            if (!ctrl.classList.contains('hidden') && !ctrl.contains(e.target) && !e.target.closest('[onclick="toggleTimerControl()"]')) {
+                ctrl.classList.add('hidden');
+            }
+        });
+
+        // ═══ 输入ID加入房间 ═════════════════════════════════
+        function openJoinRoomModal() {
+            document.getElementById('join-room-modal').classList.remove('hidden');
+            document.getElementById('join-room-modal').classList.add('flex');
+            document.getElementById('join-room-id').focus();
+        }
+        function closeJoinRoomModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('join-room-modal').classList.add('hidden');
+            document.getElementById('join-room-modal').classList.remove('flex');
+        }
+        function formatRoomInput(input) {
+            let val = input.value.replace(/\D/g, '').slice(0, 9);
+            if (val.length > 6) val = val.slice(0, 3) + ' ' + val.slice(3, 6) + ' ' + val.slice(6);
+            else if (val.length > 3) val = val.slice(0, 3) + ' ' + val.slice(3);
+            input.value = val;
+        }
+        function joinRoom() {
+            const roomId = document.getElementById('join-room-id').value.replace(/\s/g, '');
+            const password = document.getElementById('join-room-password').value.trim();
+            const nickname = document.getElementById('join-nickname').value.trim();
+            if (!roomId || roomId.length < 6) { showToast('请输入有效的房间号'); return; }
+            if (!Auth.isLoggedIn()) { Auth.showAuthModal(); return; }
+
+            showToast(`正在加入房间 ${roomId}...`);
+            Auth.apiCall('/api/rooms/join', {
+                method: 'POST',
+                body: JSON.stringify({ room_code: roomId, password: password || null }),
+            }).then(async resp => {
+                const data = await resp.json();
+                if (!resp.ok) { showToast('❌ ' + (data.detail || '加入失败')); return; }
+                closeJoinRoomModal();
+                showToast(`✅ 已加入房间 ${roomId}`);
+                currentRoomId = data.id;
+                currentRoomData = data;
+                renderRoomMembers(data);
+                loadRoomMessages(data.id);
+                loadMyRooms();
+                document.getElementById('room-number').textContent = roomId.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+            }).catch(e => { showToast('❌ ' + e.message); });
+        }
+
+        // ═══ 房间与成员管理 ═════════════════════════════════
+        let currentRoomId = null;   // 当前所在房间 UUID
+        let currentRoomData = null; // 当前房间详情
+
+        let roomMembers = [];
+        let aiMembers = [
+            { name: 'DeepSeek V3', role: '逻辑推理专家', icon: 'fa-code', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', active: true },
+            { name: '文心一言', role: '知识整合专家', icon: 'fa-brain', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600', active: true },
+            { name: '通义千问', role: '创意发散', icon: 'fa-cloud', iconBg: 'bg-red-100', iconColor: 'text-red-600', active: false },
+        ];
+
+        function addMemberToPanel(name, isAI) {
+            if (!isAI) {
+                roomMembers.push({ name, role: '团队成员', isMe: false, online: true });
+                renderMemberPanel();
+                showToast(`${name} 加入了房间`);
+            }
+        }
+
+        /** 从 RoomOut 数据渲染成员 */
+        function renderRoomMembers(roomData) {
+            const me = Auth.getUser();
+            roomMembers = (roomData.members || []).map(m => ({
+                name: m.display_name || '成员',
+                role: m.role === 'host' ? '主持人' : '团队成员',
+                isMe: me && m.user_id === me.id,
+                online: m.is_online,
+            }));
+            renderMemberPanel();
+        }
+
+        function renderMemberPanel() {
+            const countEl = document.getElementById('human-member-count');
+            if (countEl) countEl.textContent = `人类团队 (${roomMembers.length})`;
+
+            const container = document.getElementById('human-member-list');
+            if (!container) return;
+            container.innerHTML = '';
+            roomMembers.forEach(m => {
+                const isMe = m.isMe;
+                container.innerHTML += `
+                    <div class="flex items-center gap-3 p-2 rounded-lg ${isMe ? 'bg-blue-50/50 border border-blue-100/50' : 'hover:bg-slate-50'} transition ${isMe ? '' : 'cursor-pointer'}">
+                        <div class="relative">
+                            <div class="w-10 h-10 rounded-full ${isMe ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-xs font-bold shadow-md">
+                                ${isMe ? '主持人' : '成员'}
+                            </div>
+                            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 ${m.online ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full ${isMe ? 'pulse-dot' : ''}"></div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-bold text-slate-${isMe ? '800' : '700'}">${m.name}${isMe ? ' (我)' : ''}</div>
+                            <div class="flex items-center gap-1">
+                                ${isMe ? '<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">主持人</span>' : `<div class="text-xs text-slate-400">${m.role}</div>`}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        /** 渲染 AI 成员面板（右侧栏） */
+        function renderAIMemberPanel() {
+            const countEl = document.getElementById('ai-member-count');
+            if (countEl) countEl.textContent = `AI 队友 (${aiMembers.length})`;
+            const container = document.getElementById('ai-member-list');
+            if (!container) return;
+            container.innerHTML = '';
+            aiMembers.forEach((m, idx) => {
+                const inactive = !m.active;
+                container.innerHTML += `
+                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer group ${inactive ? 'opacity-60 grayscale hover:grayscale-0 hover:opacity-100' : ''}">
+                        <div class="relative">
+                            <div class="w-10 h-10 rounded-full ${m.iconBg} flex items-center justify-center ${m.iconColor}">
+                                <i class="fa-solid ${m.icon}"></i>
+                            </div>
+                            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 ${m.active ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full"></div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="text-sm font-bold text-slate-700 group-hover:text-blue-600 transition">${m.name}</div>
+                            <div class="text-xs text-slate-400">${m.role}${inactive ? ' (休眠)' : ''}</div>
+                        </div>
+                        <i onclick="event.stopPropagation(); openAICustomModal('${m.name}', '${m.modelId || ''}')" class="fa-solid fa-sliders text-slate-300 hover:text-blue-600 cursor-pointer p-1 transition"></i>
+                        <i onclick="event.stopPropagation(); removeAIMember(${idx})" class="fa-solid fa-xmark text-slate-300 hover:text-red-500 cursor-pointer p-1 transition text-xs"></i>
+                    </div>
+                `;
+            });
+        }
+
+        function removeAIMember(idx) {
+            aiMembers.splice(idx, 1);
+            renderAIMemberPanel();
+            renderActiveAIBar();
+        }
+
+        /** 渲染底部 Active AI 复选框栏 */
+        function renderActiveAIBar() {
+            const bar = document.getElementById('active-ai-bar');
+            if (!bar) return;
+            // Remove old dynamic checkboxes (keep the "Active AI:" label and the brainstorm toggle)
+            const oldLabels = bar.querySelectorAll('label.ai-active-cb');
+            oldLabels.forEach(l => l.remove());
+            // Insert before the ml-auto div
+            const mlAutoDiv = bar.querySelector('.ml-auto');
+            aiMembers.forEach((m, idx) => {
+                const label = document.createElement('label');
+                label.className = `ai-active-cb cursor-pointer select-none flex items-center gap-1.5 ${m.active ? 'bg-blue-50 text-blue-700 border-blue-100' : 'bg-slate-50 text-slate-600 border-slate-200'} px-2.5 py-1 rounded-md border transition hover:border-blue-300`;
+                label.innerHTML = `<input type="checkbox" ${m.active ? 'checked' : ''} class="accent-blue-600 rounded w-3.5 h-3.5" onchange="toggleAIMemberActive(${idx}, this.checked)"><span class="${m.active ? 'font-semibold' : 'font-medium'}">${m.name}</span>`;
+                bar.insertBefore(label, mlAutoDiv);
+            });
+        }
+
+        function toggleAIMemberActive(idx, checked) {
+            aiMembers[idx].active = checked;
+            renderAIMemberPanel();
+            renderActiveAIBar();
+        }
+
+        // ═══ 历史记录（作用域隔离 localStorage）══════════════
+        function loadHistoryFromStorage() {
+            return ScopedStorage.loadHistory();
+        }
+
+        function saveHistoryToStorage(history) {
+            ScopedStorage.saveHistory(history);
+        }
+
+        function saveCurrentConversation(title, messages) {
+            const all = loadHistoryFromStorage();
+            const id = 'conv_' + Date.now();
+            all[id] = { title, messages, time: new Date().toLocaleString('zh-CN') };
+            // 最多保留 20 条
+            const keys = Object.keys(all);
+            if (keys.length > 20) { delete all[keys[0]]; }
+            saveHistoryToStorage(all);
+            renderHistorySidebar();
+            return id;
+        }
+
+        function deleteHistory(id, event) {
+            event.stopPropagation();
+            const all = loadHistoryFromStorage();
+            delete all[id];
+            saveHistoryToStorage(all);
+            renderHistorySidebar();
+            showToast('已删除');
+        }
+
+        function renderHistorySidebar() {
+            const all = loadHistoryFromStorage();
+            const container = document.getElementById('history-list');
+            if (!container) return;
+            container.innerHTML = '';
+
+            Object.keys(all).reverse().forEach(k => {
+                const conv = all[k];
+                const el = document.createElement('div');
+                el.className = 'cursor-pointer py-2.5 px-3 rounded-lg hover:bg-slate-800 text-sm truncate text-slate-300 transition hover:text-white border border-transparent hover:border-slate-700 flex items-center justify-between group';
+                el.onclick = () => loadConversation(k);
+                el.innerHTML = `<span class="truncate"><i class="fa-regular fa-message mr-2 text-xs opacity-50"></i>${conv.title}</span>
+                    <button onclick="deleteHistory('${k}', event)" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition ml-2 flex-shrink-0"><i class="fa-solid fa-trash-can text-xs"></i></button>`;
+                container.appendChild(el);
+            });
+        }
+
+        /** 从后端加载我的房间列表 */
+        async function loadMyRooms() {
+            if (!Auth.isLoggedIn()) return;
+            try {
+                const resp = await Auth.apiCall('/api/rooms');
+                if (!resp.ok) return;
+                const rooms = await resp.json();
+                const container = document.getElementById('my-rooms-list');
+                if (!container) return;
+                container.innerHTML = '';
+                if (rooms.length === 0) {
+                    container.innerHTML = '<div class="text-xs text-slate-500 px-2 py-1">暂无房间</div>';
+                    return;
+                }
+                rooms.forEach(room => {
+                    const el = document.createElement('div');
+                    const isActive = currentRoomId === room.id;
+                    const memberCount = (room.members || []).length;
+                    const isMulti = memberCount > 1;
+                    const isAdvanced = room.workflow_steps && room.workflow_steps.length > 0;
+                    // 高级房间用渐变紫色，多人用红色，普通用蓝色
+                    let borderColor, iconColor, icon, badge;
+                    if (isAdvanced) {
+                        borderColor = 'border-l-purple-500';
+                        iconColor = 'text-purple-400';
+                        icon = 'fa-solid fa-diagram-project';
+                        const stepCount = room.workflow_steps.length;
+                        badge = `<span class="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded-full font-bold">${stepCount}步</span>`;
+                    } else if (isMulti) {
+                        borderColor = 'border-l-red-500';
+                        iconColor = 'text-red-400';
+                        icon = 'fa-solid fa-users';
+                        badge = `<span class="text-[10px] bg-red-500/20 text-red-300 px-1.5 py-0.5 rounded-full font-bold">${memberCount}人</span>`;
+                    } else {
+                        borderColor = 'border-l-blue-400';
+                        iconColor = 'text-blue-400';
+                        icon = 'fa-solid fa-user';
+                        badge = '';
+                    }
+                    el.className = `cursor-pointer py-2.5 px-3 rounded-lg hover:bg-slate-800 text-sm text-slate-300 transition hover:text-white border-l-2 ${borderColor} flex flex-col gap-1 group ${isActive ? 'bg-slate-800 text-white' : ''}`;
+                    el.onclick = () => enterRoom(room.id);
+
+                    // 主行：图标 + 标题 + 标记 + 删除
+                    let mainRow = `<div class="flex items-center gap-2"><i class="${icon} text-xs ${iconColor}"></i><span class="truncate flex-1">${room.topic || '房间 ' + room.room_code}</span>${badge}<button onclick="event.stopPropagation(); deleteRoom('${room.id}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition ml-1 flex-shrink-0" title="删除房间"><i class="fa-solid fa-trash-can text-xs"></i></button></div>`;
+
+                    // 高级房间：显示流程缩略
+                    let flowRow = '';
+                    if (isAdvanced) {
+                        const TYPE_LABELS = { 'FreeBrainstorm': '风暴', 'LeafHopper': '跳跃', 'FastFocus': '聚焦', 'BucketWalk': '水桶', 'PopcornSort': '拾掇', 'StrawPoll': '投票' };
+                        const stepLabels = room.workflow_steps.map(s => TYPE_LABELS[s.thinklet_type] || s.thinklet_type).join(' → ');
+                        flowRow = `<div class="text-[10px] text-slate-500 truncate pl-5">${stepLabels}</div>`;
+                    }
+                    el.innerHTML = mainRow + flowRow;
+                    container.appendChild(el);
+                });
+            } catch { /* ignore */ }
+        }
+
+        /** 删除房间 */
+        async function deleteRoom(roomId) {
+            if (!confirm('确定要删除这个房间吗？所有聊天记录将被清除。')) return;
+            try {
+                const resp = await Auth.apiCall('/api/rooms/' + roomId, { method: 'DELETE' });
+                if (resp.ok) {
+                    showToast('✅ 房间已删除');
+                    if (currentRoomId === roomId) {
+                        currentRoomId = null;
+                        currentRoomData = null;
+                        document.getElementById('chat-content').innerHTML = '';
+                        document.getElementById('chat-content').classList.add('hidden');
+                        document.getElementById('welcome-screen').classList.remove('hidden');
+                    }
+                    loadMyRooms();
+                } else {
+                    const data = await resp.text();
+                    let msg = data;
+                    try { msg = JSON.parse(data).detail; } catch {}
+                    showToast('❌ ' + msg);
+                }
+            } catch (e) { showToast('❌ ' + e.message); }
+        }
+
+        /** 进入某个房间（从侧栏点击） */
+        async function enterRoom(roomId) {
+            if (!Auth.isLoggedIn()) { Auth.showAuthModal(); return; }
+            try {
+                const resp = await Auth.apiCall('/api/rooms/' + roomId);
+                if (!resp.ok) { showToast('打开房间失败'); return; }
+                const room = await resp.json();
+                currentRoomId = room.id;
+                currentRoomData = room;
+                renderRoomMembers(room);
+                loadRoomMessages(room.id);
+                loadMyRooms(); // 刷新高亮
+                document.getElementById('room-number').textContent = room.room_code.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3');
+            } catch(e) { showToast('❌ ' + e.message); }
+        }
+
+        /** 加载房间的聊天历史 */
+        async function loadRoomMessages(roomId) {
+            try {
+                const resp = await Auth.apiCall('/api/rooms/' + roomId + '/messages?limit=200');
+                if (!resp.ok) return;
+                const messages = await resp.json();
+
+                document.getElementById('welcome-screen').classList.add('hidden');
+                const chatContent = document.getElementById('chat-content');
+                chatContent.classList.remove('hidden');
+                chatContent.innerHTML = '';
+                chatHistory = [];
+
+                const me = Auth.getUser();
+                messages.forEach(msg => {
+                    if (msg.message_type === 'user') {
+                        renderUserMessage({
+                            name: msg.sender_name,
+                            role: '用户',
+                            avatar: msg.sender_name[0],
+                            avatarBg: msg.sender_id === (me && me.id) ? 'bg-gradient-to-br from-blue-400 to-blue-500' : 'bg-blue-400',
+                            content: msg.content,
+                            time: new Date(msg.created_at).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'}),
+                        });
+                        chatHistory.push({ role: 'user', content: msg.content });
+                    } else if (msg.message_type === 'ai') {
+                        const modelInfo = MODEL_MAP[msg.sender_name] || MODEL_MAP['DeepSeek V3'] || {};
+                        renderAIMessage({
+                            name: msg.sender_name,
+                            role: 'AI 智能体',
+                            icon: modelInfo.icon || 'fa-robot',
+                            iconBg: modelInfo.iconBg || 'bg-blue-100',
+                            iconColor: modelInfo.iconColor || 'text-blue-600',
+                            content: msg.content,
+                            time: new Date(msg.created_at).toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'}),
+                        });
+                        chatHistory.push({ role: 'assistant', content: '[' + msg.sender_name + '] ' + msg.content });
+                    }
+                });
+
+                const container = document.getElementById('chat-container');
+                setTimeout(() => { scrollToBottom(); }, 100);
+            } catch { /* ignore */ }
+        }
+
+        let _lastMsgCount = 0;
+        /** 增量刷新当前房间消息（轮询用，避免重渲染闪烁） */
+        async function refreshRoomMessages() {
+            if (!currentRoomId || !Auth.isLoggedIn() || isSending) return;
+            try {
+                const resp = await Auth.apiCall('/api/rooms/' + currentRoomId + '/messages?limit=200');
+                if (!resp.ok) return;
+                const messages = await resp.json();
+                // 仅在消息数变化时重新渲染
+                if (messages.length !== _lastMsgCount) {
+                    _lastMsgCount = messages.length;
+                    loadRoomMessages(currentRoomId);
+                }
+            } catch { /* ignore */ }
+        }
+
+        // ═══ Toast 通知 ═══════════════════════════════════
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl z-[100] flex items-center gap-3';
+            toast.style.animation = 'fadeIn 0.2s ease-out';
+            toast.innerHTML = `<span class="font-medium">${message}</span>`;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(() => toast.remove(), 300);
+            }, 2000);
+        }
+        function showCopySuccess(msg) { showToast(msg); }
+
+        // ═══ 已采纳意见面板 ════════════════════════════════
+        let adoptedOpinions = [];
+
+        function toggleAdoptedPanel() {
+            document.getElementById('adopted-panel').classList.toggle('translate-x-full');
+        }
+
+        function adoptOpinion(aiName, btn) {
+            const card = btn.closest('.bg-white');
+            const textEl = card.querySelector('p');
+            if (!textEl) return;
+            const content = textEl.innerHTML;
+            const modelInfo = MODEL_MAP[aiName] || {};
+            adoptedOpinions.push({
+                id: 'adopt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                aiName,
+                content,
+                time: new Date().toLocaleString('zh-CN'),
+                icon: modelInfo.icon || 'fa-robot',
+                iconBg: modelInfo.iconBg || 'bg-blue-100',
+                iconColor: modelInfo.iconColor || 'text-blue-600',
+            });
+            renderAdoptedPanel();
+            ScopedStorage.saveAdopted(adoptedOpinions, currentRoomId);
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 已采纳';
+            btn.classList.add('text-green-600');
+            showToast('✅ 已采纳该意见');
+        }
+
+        function removeAdoption(id) {
+            adoptedOpinions = adoptedOpinions.filter(o => o.id !== id);
+            renderAdoptedPanel();
+            ScopedStorage.saveAdopted(adoptedOpinions, currentRoomId);
+        }
+
+        function clearAllAdoptions() {
+            if (adoptedOpinions.length === 0) return;
+            adoptedOpinions = [];
+            renderAdoptedPanel();
+            ScopedStorage.saveAdopted(adoptedOpinions, currentRoomId);
+            showToast('已清空所有采纳意见');
+        }
+
+        /** 编辑已采纳意见 */
+        function editAdoption(id) {
+            const o = adoptedOpinions.find(x => x.id === id);
+            if (!o) return;
+            const el = document.querySelector(`[data-adopt-id="${id}"] .adopt-content`);
+            if (!el) return;
+            el.contentEditable = 'true';
+            el.focus();
+            el.classList.add('ring-2', 'ring-blue-400', 'outline-none');
+            el.onblur = () => {
+                el.contentEditable = 'false';
+                el.classList.remove('ring-2', 'ring-blue-400', 'outline-none');
+                o.content = el.innerHTML;
+                ScopedStorage.saveAdopted(adoptedOpinions, currentRoomId);
+                showToast('已保存修改');
+            };
+        }
+
+        /** AI 精炼已采纳意见 */
+        async function refineAdoption(id) {
+            const o = adoptedOpinions.find(x => x.id === id);
+            if (!o) return;
+            const el = document.querySelector(`[data-adopt-id="${id}"] .adopt-content`);
+            if (!el) return;
+            const originalHTML = el.innerHTML;
+            const originalText = el.textContent;
+            el.innerHTML = '<span class="text-slate-400 text-xs"><i class="fa-solid fa-spinner fa-spin mr-1"></i>AI 精炼中...</span>';
+            try {
+                const fetchFn = Auth.isLoggedIn() ? Auth.apiCall : fetch;
+                const resp = await fetchFn('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '请精炼和优化以下观点，使其更加简洁、清晰、有说服力，保持核心意思不变，直接输出精炼后的内容，不要加标题或前缀：\n\n' + originalText,
+                        model_id: 'deepseek-v3',
+                        history: [],
+                    }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    let html = data.content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
+                    el.innerHTML = html;
+                    o.content = html;
+                    ScopedStorage.saveAdopted(adoptedOpinions, currentRoomId);
+                    showToast('✅ AI 精炼完成');
+                } else {
+                    el.innerHTML = originalHTML;
+                    showToast('精炼失败，请重试');
+                }
+            } catch (e) {
+                el.innerHTML = originalHTML;
+                showToast('网络错误: ' + e.message);
+            }
+        }
+
+        /** AI 一键从聊天记录提取观点 */
+        async function extractOpinionsFromChat() {
+            if (chatHistory.length < 2) { showToast('聊天记录太少，请先进行一些对话'); return; }
+            showToast('🤖 正在从聊天记录中提取观点...');
+            try {
+                const historyText = chatHistory.map(m => `[${m.role === 'user' ? '用户' : 'AI'}] ${m.content}`).join('\n');
+                const fetchFn = Auth.isLoggedIn() ? Auth.apiCall : fetch;
+                const resp = await fetchFn('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: '请从以下聊天记录中提取5-10个关键观点或建议。每个观点用一行表达，以"- "开头，简洁且完整。不要添加其他解释文字。\n\n' + historyText,
+                        model_id: 'deepseek-v3',
+                        history: [],
+                    }),
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const lines = data.content.split('\n').filter(l => l.trim().startsWith('-') || l.trim().startsWith('•'));
+                    if (lines.length === 0) { showToast('未能提取到有效观点'); return; }
+                    lines.forEach(line => {
+                        const text = line.replace(/^[\s\-•]+/, '').trim();
+                        if (!text) return;
+                        adoptedOpinions.push({
+                            id: 'adopt_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                            aiName: 'AI 提取',
+                            content: text,
+                            time: new Date().toLocaleString('zh-CN'),
+                            icon: 'fa-wand-magic-sparkles',
+                            iconBg: 'bg-blue-100',
+                            iconColor: 'text-blue-600',
+                        });
+                    });
+                    renderAdoptedPanel();
+                    ScopedStorage.saveAdopted(adoptedOpinions, currentRoomId);
+                    showToast(`✅ 已提取 ${lines.length} 条观点`);
+                    // 自动打开采纳面板
+                    const panel = document.getElementById('adopted-panel');
+                    if (panel.classList.contains('translate-x-full')) toggleAdoptedPanel();
+                } else {
+                    showToast('提取失败，请重试');
+                }
+            } catch (e) {
+                showToast('网络错误: ' + e.message);
+            }
+        }
+
+        /** 将采纳意见推送到 ThinkLet 页面并跳转 */
+        function sendToThinkLet(toolName) {
+            if (adoptedOpinions.length === 0) { showToast('请先采纳一些意见'); return; }
+            const ideas = adoptedOpinions.map((o, i) => ({
+                id: i + 1,
+                text: o.content.replace(/<[^>]+>/g, ''), // strip HTML
+                author: o.aiName,
+                votes: 0,
+            }));
+            ScopedStorage.saveSharedIdeas(ideas, currentRoomId);
+            const pages = {
+                '快速聚焦': '快速聚焦.html',
+                '水桶漫步': '水桶漫步.html',
+                '米花拾掇': '米花拾掇.html',
+                '麦秆投票': '麦秆投票.html',
+            };
+            const page = pages[toolName];
+            if (page) window.location.href = page + '?roomId=' + encodeURIComponent(currentRoomId || '');
+        }
+
+        /** 侧栏 ThinkLet 工具点击 → 选择房间后导入数据并跳转 */
+        async function openThinkLetWithRoom(targetPage) {
+            // 如果当前在高级房间（有流程），直接导入当前房间数据，跳过选择
+            if (currentRoomId && currentRoomData && currentRoomData.workflow_steps && currentRoomData.workflow_steps.length > 0) {
+                if (adoptedOpinions.length > 0) {
+                    const ideas = adoptedOpinions.map((o, i) => ({ id: i+1, text: o.content.replace(/<[^>]+>/g,''), author: o.aiName, votes: 0 }));
+                    ScopedStorage.saveSharedIdeas(ideas, currentRoomId);
+                }
+                window.location.href = targetPage + '?roomId=' + encodeURIComponent(currentRoomId);
+                return;
+            }
+            // 如果当前已在某房间且有采纳意见，询问
+            if (currentRoomId && adoptedOpinions.length > 0) {
+                const useCurrentRoom = confirm(`当前房间有 ${adoptedOpinions.length} 条已采纳意见，是否导入当前房间数据？\n\n点击"取消"可选择其他房间。`);
+                if (useCurrentRoom) {
+                    const ideas = adoptedOpinions.map((o, i) => ({ id: i+1, text: o.content.replace(/<[^>]+>/g,''), author: o.aiName, votes: 0 }));
+                    ScopedStorage.saveSharedIdeas(ideas, currentRoomId);
+                    window.location.href = targetPage + '?roomId=' + encodeURIComponent(currentRoomId);
+                    return;
+                }
+            }
+            // 弹出房间选择器
+            if (!Auth.isLoggedIn()) { window.location.href = targetPage; return; }
+            try {
+                const resp = await Auth.apiCall('/api/rooms');
+                if (!resp.ok) { window.location.href = targetPage; return; }
+                const rooms = await resp.json();
+                if (rooms.length === 0) {
+                    showToast('暂无房间，请先创建');
+                    return;
+                }
+                showRoomPickerModal(rooms, targetPage);
+            } catch {
+                window.location.href = targetPage;
+            }
+        }
+
+        function showRoomPickerModal(rooms, targetPage) {
+            // 移除已有弹窗
+            const existing = document.getElementById('room-picker-modal');
+            if (existing) existing.remove();
+            const modal = document.createElement('div');
+            modal.id = 'room-picker-modal';
+            modal.className = 'fixed inset-0 bg-black/50 z-50 flex items-center justify-center';
+            modal.innerHTML = `
+                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-slate-800">选择导入数据的房间</h3>
+                        <button onclick="document.getElementById('room-picker-modal').remove()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+                    </div>
+                    <div class="space-y-2 max-h-64 overflow-y-auto">
+                        ${rooms.map(r => {
+                            const isAdv = r.workflow_steps && r.workflow_steps.length > 0;
+                            return `<button onclick="pickRoomForThinkLet('${r.id}', '${targetPage}')" class="w-full text-left p-3 rounded-lg border ${isAdv ? 'border-purple-200 bg-purple-50' : 'border-slate-200'} hover:border-blue-300 hover:bg-blue-50 transition flex items-center gap-3">
+                                <i class="fa-solid ${isAdv ? 'fa-diagram-project text-purple-500' : 'fa-comments text-blue-500'}"></i>
+                                <div class="flex-1 min-w-0">
+                                    <div class="text-sm font-medium text-slate-700 truncate">${r.topic || '房间 ' + r.room_code}</div>
+                                    <div class="text-xs text-slate-400">${(r.members||[]).length}人 · ${isAdv ? r.workflow_steps.length + '步流程' : '自由研讨'}</div>
+                                </div>
+                            </button>`;
+                        }).join('')}
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+
+        function pickRoomForThinkLet(roomId, targetPage) {
+            document.getElementById('room-picker-modal').remove();
+            window.location.href = targetPage + '?roomId=' + encodeURIComponent(roomId);
+        }
+
+        function renderAdoptedPanel() {
+            const count = adoptedOpinions.length;
+            const badge = document.getElementById('adopted-badge');
+            if (badge) {
+                badge.textContent = count;
+                badge.classList.toggle('hidden', count === 0);
+            }
+            const countEl = document.getElementById('adopted-count');
+            if (countEl) countEl.textContent = `共 ${count} 条`;
+
+            const list = document.getElementById('adopted-opinions-list');
+            if (!list) return;
+            if (count === 0) {
+                list.innerHTML = `<div id="adopted-empty" class="h-full flex items-center justify-center text-slate-400 text-sm">
+                    <div class="text-center"><i class="fa-regular fa-bookmark text-3xl mb-3 block opacity-50"></i>暂无采纳意见<br><span class="text-xs">在聊天中点击"采纳"按钮添加</span></div>
+                </div>`;
+                return;
+            }
+            list.innerHTML = adoptedOpinions.map(o => `
+                <div class="bg-white border border-slate-200 rounded-xl p-4 hover:shadow-md transition" data-adopt-id="${o.id}">
+                    <div class="flex items-start gap-3 mb-3">
+                        <div class="w-8 h-8 rounded-lg ${o.iconBg} ${o.iconColor} flex items-center justify-center flex-shrink-0">
+                            <i class="fa-solid ${o.icon} text-sm"></i>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-semibold text-slate-800 text-sm">${o.aiName}</div>
+                            <div class="text-xs text-slate-400 mt-0.5">采纳于 ${o.time}</div>
+                        </div>
+                        <button onclick="removeAdoption('${o.id}')" class="w-7 h-7 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-600 transition">
+                            <i class="fa-solid fa-xmark text-sm"></i>
+                        </button>
+                    </div>
+                    <div class="adopt-content text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-100 cursor-text" title="点击可编辑" onclick="editAdoption('${o.id}')">${o.content}</div>
+                    <div class="flex gap-2 mt-3">
+                        <button onclick="refineAdoption('${o.id}')" class="flex-1 py-2 px-3 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>AI精炼
+                        </button>
+                        <button onclick="navigator.clipboard.writeText(this.closest('[data-adopt-id]').querySelector('.adopt-content').textContent).then(()=>showToast('已复制'))" class="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg transition flex items-center justify-center gap-1.5">
+                            <i class="fa-regular fa-copy"></i>复制
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // ═══ 邀请成员模态框 ════════════════════════════════
+        function openInviteModal() {
+            document.getElementById('invite-modal').classList.remove('hidden');
+            document.getElementById('invite-modal').classList.add('flex');
+        }
+        function closeInviteModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('invite-modal').classList.add('hidden');
+            document.getElementById('invite-modal').classList.remove('flex');
+        }
+        function copyRoomNumber() {
+            const text = document.getElementById('room-number').textContent.replace(/\s/g, '');
+            copyToClipboard(text, event ? event.currentTarget : null, '房间号已复制');
+        }
+        function copyInviteLink() {
+            const text = document.getElementById('invite-link').textContent;
+            copyToClipboard(text, event ? event.currentTarget : null, '邀请链接已复制');
+        }
+        function togglePassword() { const s = document.getElementById('password-section'); document.getElementById('password-toggle').checked ? s.classList.remove('hidden') : s.classList.add('hidden'); }
+        function copyPassword() {
+            const text = document.getElementById('room-password').value;
+            copyToClipboard(text, event ? event.currentTarget : null, '密码已复制');
+        }
+        function copyAllInviteInfo() {
+            const room = document.getElementById('room-number').textContent;
+            const link = document.getElementById('invite-link').textContent;
+            const pw = document.getElementById('password-toggle').checked ? document.getElementById('room-password').value : '';
+            let txt = `🎯 邀请您加入 AI Co-Lab\n📋 房间号: ${room}\n🔗 链接: ${link}\n`; if (pw) txt += `🔐 密码: ${pw}\n`;
+            copyToClipboard(txt, event ? event.currentTarget : null, '全部邀请信息已复制');
+        }
+
+        /** 通用复制函数：支持 clipboard API 降级 + 按钮反馈 */
+        function copyToClipboard(text, btn, msg) {
+            const doCopy = (t) => {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    return navigator.clipboard.writeText(t);
+                }
+                // 降级方案
+                const ta = document.createElement('textarea');
+                ta.value = t;
+                ta.style.cssText = 'position:fixed;left:-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                return Promise.resolve();
+            };
+            doCopy(text).then(() => {
+                showToast(msg || '已复制');
+                if (btn) {
+                    const original = btn.innerHTML;
+                    btn.innerHTML = '<i class="fa-solid fa-check"></i> <span class="hidden sm:inline">已复制</span>';
+                    btn.classList.add('bg-green-500'); btn.classList.remove('bg-slate-800', 'bg-slate-700');
+                    setTimeout(() => { btn.innerHTML = original; btn.classList.remove('bg-green-500'); btn.classList.add('bg-slate-800'); }, 1500);
+                }
+            }).catch(() => showToast('复制失败，请手动选择'));
+        }
+
+        function shareToWeChat() { copyAllInviteInfo(); showToast('信息已复制，请打开微信粘贴分享'); }
+        function shareToQQ() { copyAllInviteInfo(); showToast('信息已复制，请打开QQ粘贴分享'); }
+        function shareByEmail() {
+            const room = document.getElementById('room-number').textContent, link = document.getElementById('invite-link').textContent;
+            window.location.href = `mailto:?subject=${encodeURIComponent('邀请加入AI Co-Lab')}&body=${encodeURIComponent(`房间号: ${room}\n链接: ${link}`)}`;
+        }
+        function generateQRCode() { showToast('二维码功能开发中'); }
+
+        // ═══ 抽屉收缩展开 ══════════════════════════════════
+        let isDrawerExpanded = true;
+        let isLeftSidebarExpanded = true;
+
+        function toggleLeftSidebar() {
+            const sidebar = document.getElementById('left-sidebar');
+            const icon = document.getElementById('left-sidebar-icon');
+            isLeftSidebarExpanded = !isLeftSidebarExpanded;
+            if (isLeftSidebarExpanded) {
+                sidebar.classList.remove('left-sidebar-collapsed');
+                sidebar.style.width = '16rem';
+                icon.className = 'fa-solid fa-angles-left text-sm';
+            } else {
+                sidebar.classList.add('left-sidebar-collapsed');
+                sidebar.style.width = '0';
+                icon.className = 'fa-solid fa-angles-right text-sm';
+            }
+        }
+
+        function toggleDrawer() {
+            const drawer = document.getElementById('member-drawer');
+            const toggleBtn = document.getElementById('drawer-toggle-btn');
+            const drawerIcon = document.getElementById('drawer-icon');
+            const chatMain = document.getElementById('chat-main');
+            
+            isDrawerExpanded = !isDrawerExpanded;
+            
+            if (isDrawerExpanded) {
+                // 展开抽屉
+                drawer.classList.remove('drawer-collapsed');
+                drawer.classList.add('drawer-expanded');
+                toggleBtn.classList.add('hidden');
+                toggleBtn.classList.remove('flex');
+                drawerIcon.className = 'fa-solid fa-angles-right text-sm';
+                
+                // 聊天区域恢复正常
+                chatMain.classList.remove('chat-expanded');
+                chatMain.classList.add('chat-normal');
+            } else {
+                // 收缩抽屉
+                drawer.classList.remove('drawer-expanded');
+                drawer.classList.add('drawer-collapsed');
+                setTimeout(() => {
+                    toggleBtn.classList.remove('hidden');
+                    toggleBtn.classList.add('flex');
+                }, 300);
+                drawerIcon.className = 'fa-solid fa-angles-left text-sm';
+                
+                // 聊天区域扩展
+                chatMain.classList.remove('chat-normal');
+                chatMain.classList.add('chat-expanded');
+            }
+        }
+
+        // AI 自定义模态框控制
+        let currentAIName = '';
+        let currentAIId = '';
+
+        function openAICustomModal(aiName, aiId) {
+            event.stopPropagation();
+            currentAIName = aiName;
+            currentAIId = aiId;
+            document.getElementById('modal-ai-name').textContent = `自定义 ${aiName}`;
+            document.getElementById('ai-custom-modal').classList.remove('hidden');
+            document.getElementById('ai-custom-modal').classList.add('flex');
+            
+            // 查找现有成员并预填充设置
+            const existingMember = aiMembers.find(m => m.name === aiName || m.modelId === aiId);
+            if (existingMember) {
+                // 预选模型
+                const modelRadios = document.getElementsByName('ai-model');
+                modelRadios.forEach(radio => {
+                    radio.checked = (radio.value === (existingMember.modelId || aiId));
+                });
+                // 预选角色模板
+                const templateRadios = document.getElementsByName('ai-template');
+                const memberTemplate = existingMember.template || 'default';
+                templateRadios.forEach(radio => {
+                    radio.checked = (radio.value === memberTemplate);
+                });
+                // 显示/隐藏自定义提示词
+                const customSection = document.getElementById('custom-prompt-section');
+                if (memberTemplate === 'custom') {
+                    customSection.classList.remove('hidden');
+                    document.getElementById('custom-prompt').value = existingMember.customPrompt || '';
+                } else {
+                    customSection.classList.add('hidden');
+                    document.getElementById('custom-prompt').value = '';
+                }
+                // 加载该 AI 的私有知识库文件
+                const aiKnowledge = ScopedStorage.get('tw_ai_knowledge_' + (existingMember.id || aiId), currentRoomId);
+                knowledgeFiles = aiKnowledge || [];
+                renderKnowledgeFiles();
+            } else {
+                // 默认选中对应模型
+                const modelRadios = document.getElementsByName('ai-model');
+                modelRadios.forEach(radio => {
+                    if (radio.value === aiId) radio.checked = true;
+                });
+            }
+        }
+
+        function closeAICustomModal(event) {
+            if (event && event.target !== event.currentTarget) return;
+            document.getElementById('ai-custom-modal').classList.add('hidden');
+            document.getElementById('ai-custom-modal').classList.remove('flex');
+        }
+
+        function toggleAdvancedSettings() {
+            const settings = document.getElementById('advanced-settings');
+            const icon = document.getElementById('advanced-icon');
+            if (settings.classList.contains('hidden')) {
+                settings.classList.remove('hidden');
+                icon.style.transform = 'rotate(90deg)';
+            } else {
+                settings.classList.add('hidden');
+                icon.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        function saveAICustomSettings() {
+            const selectedModel = document.querySelector('input[name="ai-model"]:checked').value;
+            const selectedTemplate = document.querySelector('input[name="ai-template"]:checked').value;
+            const customPrompt = document.getElementById('custom-prompt').value;
+
+            // Model metadata lookup
+            const MODEL_META = {
+                'deepseek-v3': { name: 'DeepSeek V3', icon: 'fa-code', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+                'wenxin':      { name: '文心一言', icon: 'fa-brain', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600' },
+                'qianwen':     { name: '通义千问', icon: 'fa-cloud', iconBg: 'bg-red-100', iconColor: 'text-red-600' },
+                'gpt-4':       { name: 'GPT-4', icon: 'fa-microchip', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+                'claude':      { name: 'Claude', icon: 'fa-feather', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+                'gemini':      { name: 'Gemini', icon: 'fa-star', iconBg: 'bg-cyan-100', iconColor: 'text-cyan-600' },
+                'kimi':        { name: 'Kimi', icon: 'fa-moon', iconBg: 'bg-violet-100', iconColor: 'text-violet-600' },
+                'glm-4':       { name: 'GLM-4', icon: 'fa-bolt', iconBg: 'bg-rose-100', iconColor: 'text-rose-600' },
+            };
+            const TEMPLATE_ROLES = {
+                'default': '通用助手', 'analyst': '数据分析师', 'creative': '创意策划',
+                'critic': '批判性审查', 'expert': '领域专家',
+                'custom': customPrompt ? '自定义角色' : '通用助手',
+            };
+            const TEMPLATE_SYSTEM_PROMPTS = {
+                'default': '你是一个专业的协作研讨助手，善于全面分析问题并给出平衡的建议。',
+                'analyst': '你是一位资深数据分析师，擅长用数据和逻辑进行深度分析、发现规律、提出有理有据的洞察。回答时请注重因果推理和量化分析。',
+                'creative': '你是一位创意策划专家，擅长发散思维、头脑风暴和创新方案设计。回答时请跳出常规思维，提供多种新颖且有创意的角度。',
+                'critic': '你是一位批判性审查专家，擅长发现方案中的潜在问题、逻辑漏洞和风险。回答时请从质疑者的角度出发，指出不足并提出改进方向。',
+                'expert': '你是一位经验丰富的领域专家，擅长提供专业深度见解和实践经验。回答时请结合行业最佳实践和前沿趋势。',
+                'custom': '',
+            };
+
+            const meta = MODEL_META[selectedModel] || MODEL_META['deepseek-v3'];
+            const role = TEMPLATE_ROLES[selectedTemplate] || '通用助手';
+
+            if (currentAIId === '') {
+                // Adding new AI member — check by model+template+customPrompt combination
+                const exists = aiMembers.some(m => m.modelId === selectedModel && m.template === selectedTemplate && (m.customPrompt || '') === (customPrompt || ''));
+                if (exists) { showToast('相同配置的 AI 已在队伍中'); closeAICustomModal(); return; }
+                const newId = 'ai_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6);
+                aiMembers.push({
+                    id: newId,
+                    name: meta.name, role, icon: meta.icon, iconBg: meta.iconBg,
+                    iconColor: meta.iconColor, active: true, modelId: selectedModel,
+                    template: selectedTemplate, customPrompt,
+                    systemPrompt: selectedTemplate === 'custom' ? customPrompt : (TEMPLATE_SYSTEM_PROMPTS[selectedTemplate] || ''),
+                });
+                // 保存该 AI 的私有知识库
+                if (knowledgeFiles.length > 0) {
+                    ScopedStorage.set('tw_ai_knowledge_' + newId, knowledgeFiles, currentRoomId);
+                }
+                showToast(`✅ 已添加 ${meta.name}`);
+            } else {
+                // Editing existing AI member — find by name or modelId
+                const idx = aiMembers.findIndex(m => m.name === currentAIName || m.modelId === currentAIId);
+                if (idx >= 0) {
+                    const existingId = aiMembers[idx].id || currentAIId;
+                    aiMembers[idx] = {
+                        ...aiMembers[idx], name: meta.name, role, modelId: selectedModel, template: selectedTemplate, customPrompt,
+                        icon: meta.icon, iconBg: meta.iconBg, iconColor: meta.iconColor,
+                        systemPrompt: selectedTemplate === 'custom' ? customPrompt : (TEMPLATE_SYSTEM_PROMPTS[selectedTemplate] || ''),
+                    };
+                    // 保存该 AI 的私有知识库
+                    ScopedStorage.set('tw_ai_knowledge_' + existingId, knowledgeFiles, currentRoomId);
+                    showToast(`✅ ${meta.name} 配置已更新`);
+                }
+            }
+            renderAIMemberPanel();
+            renderActiveAIBar();
+            closeAICustomModal();
+            ScopedStorage.saveAIMembers(aiMembers, currentRoomId);
+        }
+
+        // 打开添加新AI成员的模态框
+        function openAddAIModal() {
+            currentAIName = '新 AI 成员';
+            currentAIId = '';
+            document.getElementById('modal-ai-name').textContent = '添加新 AI 成员';
+            document.getElementById('ai-custom-modal').classList.remove('hidden');
+            document.getElementById('ai-custom-modal').classList.add('flex');
+            
+            // 重置表单为默认值
+            document.querySelector('input[name="ai-model"][value="deepseek-v3"]').checked = true;
+            document.querySelector('input[name="ai-template"][value="default"]').checked = true;
+            document.getElementById('custom-prompt').value = '';
+            document.getElementById('custom-prompt-section').classList.add('hidden');
+            knowledgeFiles = [];
+            renderKnowledgeFiles();
+        }
+
+        // 监听角色模板选择,显示/隐藏自定义提示词区域
+        document.addEventListener('DOMContentLoaded', function() {
+            const templateRadios = document.getElementsByName('ai-template');
+            templateRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    const customSection = document.getElementById('custom-prompt-section');
+                    if (this.value === 'custom') {
+                        customSection.classList.remove('hidden');
+                    } else {
+                        customSection.classList.add('hidden');
+                    }
+                });
+            });
+
+            // @mention 输入监听
+            const userInput = document.getElementById('user-input');
+            const mentionDropdown = document.getElementById('mention-dropdown');
+            if (userInput && mentionDropdown) {
+                userInput.addEventListener('input', function() {
+                    const val = this.value;
+                    const cursorPos = this.selectionStart;
+                    const textUpToCursor = val.substring(0, cursorPos);
+                    const atIdx = textUpToCursor.lastIndexOf('@');
+                    if (atIdx === -1 || (atIdx > 0 && textUpToCursor[atIdx - 1] !== ' ' && textUpToCursor[atIdx - 1] !== '\n')) {
+                        mentionDropdown.classList.add('hidden');
+                        return;
+                    }
+                    const query = textUpToCursor.substring(atIdx + 1).toLowerCase();
+                    const activeAIs = aiMembers.filter(m => m.active && m.name.toLowerCase().includes(query));
+                    if (activeAIs.length === 0) { mentionDropdown.classList.add('hidden'); return; }
+                    mentionDropdown.innerHTML = activeAIs.map(m => `
+                        <div class="mention-item" onclick="selectMention('${m.name.replace(/'/g, "\\'")}', ${atIdx})">
+                            <div class="w-6 h-6 rounded-full ${m.iconBg} ${m.iconColor} flex items-center justify-center text-xs"><i class="fa-solid ${m.icon}"></i></div>
+                            <span>${m.name}</span>
+                            <span class="text-xs text-slate-400 ml-auto">${m.role}</span>
+                        </div>
+                    `).join('');
+                    mentionDropdown.classList.remove('hidden');
+                });
+                // Hide dropdown on blur (with delay for click)
+                userInput.addEventListener('blur', () => setTimeout(() => mentionDropdown.classList.add('hidden'), 200));
+            }
+
+            // 初始化 AI 成员面板和 Active AI 栏
+            renderAIMemberPanel();
+            renderActiveAIBar();
+
+            // 认证检查 + UI 初始化
+            if (Auth.isLoggedIn()) {
+                Auth.updateUserUI();
+                const user = Auth.getUser();
+                if (user) {
+                    document.getElementById('user-profile-role').textContent = '已登录';
+                    const nicknameEl = document.getElementById('join-nickname');
+                    if (nicknameEl) nicknameEl.value = user.display_name;
+                    // 默认只有当前用户作为主持人
+                    if (roomMembers.length === 0) {
+                        roomMembers = [{ name: user.display_name, role: '主持人', isMe: true, online: true }];
+                        renderMemberPanel();
+                    }
+                }
+                loadMyRooms();
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomParam = urlParams.get('room');
+                if (roomParam) {
+                    enterRoom(roomParam);
+                    window.history.replaceState({}, '', window.location.pathname);
+                }
+            } else {
+                Auth.showAuthModal();
+            }
+
+            renderHistorySidebar();
+            updateTimerUI();
+
+            // 自动轮询：每5秒刷新当前房间的消息和房间列表
+            setInterval(() => {
+                if (currentRoomId && Auth.isLoggedIn()) {
+                    refreshRoomMessages();
+                }
+            }, 5000);
+        });
+
+        /** @mention 选择回调 */
+        function selectMention(name, atIdx) {
+            const input = document.getElementById('user-input');
+            const val = input.value;
+            const before = val.substring(0, atIdx);
+            const cursorPos = input.selectionStart;
+            const after = val.substring(cursorPos);
+            input.value = before + '@' + name + ' ' + after;
+            input.focus();
+            const newPos = atIdx + name.length + 2;
+            input.setSelectionRange(newPos, newPos);
+            document.getElementById('mention-dropdown').classList.add('hidden');
+
+            // 自动勾选对应 AI 的 active checkbox
+            const memberIdx = aiMembers.findIndex(m => m.name === name);
+            if (memberIdx >= 0 && !aiMembers[memberIdx].active) {
+                aiMembers[memberIdx].active = true;
+                renderAIMemberPanel();
+                renderActiveAIBar();
+            }
+        }
+
+        /** 认证成功回调（由 auth.js 调用） */
+        function onAuthSuccess(user) {
+            Auth.updateUserUI();
+            document.getElementById('user-profile-role').textContent = '已登录';
+            const nicknameEl = document.getElementById('join-nickname');
+            if (nicknameEl) nicknameEl.value = user.display_name;
+            // 初始化当前用户为主持人
+            roomMembers = [{ name: user.display_name, role: '主持人', isMe: true, online: true }];
+            // 加载作用域隔离的持久化数据
+            const savedMembers = ScopedStorage.loadAIMembers(currentRoomId);
+            if (savedMembers && savedMembers.length > 0) aiMembers = savedMembers;
+            adoptedOpinions = ScopedStorage.loadAdopted(currentRoomId);
+            renderMemberPanel();
+            renderAIMemberPanel();
+            renderActiveAIBar();
+            renderAdoptedPanel();
+            loadMyRooms();
+            renderHistorySidebar();
+            showToast('✅ 欢迎, ' + user.display_name);
+        }
+
+        // 知识库文件管理
+        let knowledgeFiles = [];
+
+        async function handleKnowledgeFiles(files) {
+            if (!files || files.length === 0) return;
+
+            for (const file of Array.from(files)) {
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast(`文件 "${file.name}" 超过10MB限制`);
+                    continue;
+                }
+                if (knowledgeFiles.some(f => f.name === file.name)) {
+                    showToast(`文件 "${file.name}" 已存在`);
+                    continue;
+                }
+
+                // 上传到后端提取文本
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    const headers = {};
+                    const token = Auth.isLoggedIn() && localStorage.getItem('aicolab_token');
+                    if (token) headers['Authorization'] = `Bearer ${token}`;
+                    const resp = await fetch('/api/knowledge/extract', {
+                        method: 'POST',
+                        headers,
+                        body: formData,
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        knowledgeFiles.push({
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            text: data.text,
+                            charCount: data.char_count,
+                        });
+                        showToast(`已解析 "${file.name}"（${data.char_count} 字符）`);
+                    } else {
+                        const err = await resp.json().catch(() => ({ detail: '解析失败' }));
+                        showToast(`${file.name}: ${err.detail || '解析失败'}`);
+                    }
+                } catch (e) {
+                    showToast(`${file.name}: 上传失败 - ${e.message}`);
+                }
+            }
+            renderKnowledgeFiles();
+        }
+
+        function renderKnowledgeFiles() {
+            const container = document.getElementById('files-container');
+            const listSection = document.getElementById('knowledge-files-list');
+
+            if (knowledgeFiles.length === 0) {
+                listSection.classList.add('hidden');
+                return;
+            }
+
+            listSection.classList.remove('hidden');
+            container.innerHTML = '';
+
+            knowledgeFiles.forEach((fileInfo, index) => {
+                const fileSize = formatFileSize(fileInfo.size);
+                const fileIcon = getFileIcon(fileInfo.name);
+                
+                const fileElement = document.createElement('div');
+                fileElement.className = 'flex items-center gap-3 p-3 bg-white border border-slate-200 rounded-lg hover:shadow-sm transition group';
+                fileElement.innerHTML = `
+                    <div class="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 flex items-center justify-center flex-shrink-0">
+                        <i class="fa-solid ${fileIcon} text-emerald-600"></i>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="font-medium text-slate-800 text-sm truncate">${fileInfo.name}</div>
+                        <div class="text-xs text-slate-500">${fileSize}</div>
+                    </div>
+                    <button onclick="removeKnowledgeFile(${index})" class="w-8 h-8 rounded-lg hover:bg-red-50 flex items-center justify-center text-slate-400 hover:text-red-600 transition opacity-0 group-hover:opacity-100">
+                        <i class="fa-solid fa-trash-can text-sm"></i>
+                    </button>
+                `;
+                container.appendChild(fileElement);
+            });
+        }
+
+        function removeKnowledgeFile(index) {
+            knowledgeFiles.splice(index, 1);
+            renderKnowledgeFiles();
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        }
+
+        function getFileIcon(filename) {
+            const ext = filename.split('.').pop().toLowerCase();
+            const iconMap = {
+                'pdf': 'fa-file-pdf',
+                'txt': 'fa-file-lines',
+                'doc': 'fa-file-word',
+                'docx': 'fa-file-word',
+                'md': 'fa-file-code',
+                'json': 'fa-file-code',
+            };
+            return iconMap[ext] || 'fa-file';
+        }
+
+        // 加载对话历史（仅从 localStorage，无内置演示数据）
+        function loadConversation(conversationId) {
+            const stored = loadHistoryFromStorage();
+            const conversation = stored[conversationId];
+            if (!conversation) { showToast('对话记录不存在'); return; }
+
+            // 隐藏欢迎界面,显示聊天内容
+            document.getElementById('welcome-screen').classList.add('hidden');
+            const chatContent = document.getElementById('chat-content');
+            chatContent.classList.remove('hidden');
+            chatContent.innerHTML = '';
+
+            // 渲染所有消息
+            conversation.messages.forEach(msg => {
+                if (msg.type === 'user') {
+                    renderUserMessage(msg);
+                } else if (msg.type === 'ai') {
+                    renderAIMessage(msg);
+                }
+            });
+
+            // 滚动到底部
+            scrollToBottom();
+        }
+
+        // 渲染用户消息
+        function renderUserMessage(msg) {
+            const chatContent = document.getElementById('chat-content');
+            const userHtml = `
+                <div class="flex justify-end ai-bubble-enter group">
+                    <div class="flex flex-col items-end max-w-[80%]">
+                        <div class="flex items-center gap-2 mb-1 mr-1">
+                            <span class="text-xs text-slate-400">${msg.time || ''}</span>
+                            <span class="text-xs font-medium text-slate-600">${msg.name}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 border border-blue-200">${msg.role}</span>
+                        </div>
+                        <div class="bg-slate-800 text-white rounded-2xl rounded-tr-sm py-3 px-5 shadow-md shadow-slate-800/10">
+                            ${msg.content}
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 ml-3 rounded-full ${msg.avatarBg} flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0 mt-6">
+                        ${msg.avatar}
+                    </div>
+                </div>
+            `;
+            chatContent.insertAdjacentHTML('beforeend', userHtml);
+        }
+
+        // 渲染AI消息
+        function renderAIMessage(msg) {
+            const chatContent = document.getElementById('chat-content');
+            const aiHtml = `
+                <div class="flex items-start ai-bubble-enter w-full group">
+                    <div class="w-9 h-9 mr-3 rounded-full ${msg.iconBg} ${msg.iconColor} flex items-center justify-center flex-shrink-0 shadow-sm mt-6">
+                        <i class="fa-solid ${msg.icon} text-sm"></i>
+                    </div>
+                    <div class="flex-1 max-w-[90%]">
+                        <div class="flex items-center gap-2 mb-1 ml-1">
+                            <span class="text-xs font-bold text-slate-700">${msg.name}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200">${msg.role}</span>
+                            <span class="text-xs text-slate-400 ml-1">${msg.time || ''}</span>
+                        </div>
+                        <div class="bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-sm py-4 px-6 shadow-sm shadow-slate-200/50">
+                            <p class="leading-relaxed text-sm">${stripMarkdown(msg.content)}</p>
+                            
+                            <div class="mt-4 pt-3 border-t border-slate-100 flex gap-4 text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button onclick="adoptOpinion('${msg.name}', this)" class="hover:text-blue-600 flex items-center gap-1.5 transition"><i class="fa-regular fa-thumbs-up"></i> 采纳</button>
+                                <button onclick="scoreOpinion(this)" class="hover:text-blue-600 flex items-center gap-1.5 transition"><i class="fa-solid fa-chart-simple"></i> 打分</button>
+                                <button class="hover:text-blue-600 flex items-center gap-1.5 transition"><i class="fa-regular fa-copy"></i> 复制</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContent.insertAdjacentHTML('beforeend', aiHtml);
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        }
+
+        let currentConvId = null;
+
+        function resetChat() {
+            // Auto-save current conversation before clearing
+            if (chatHistory.length > 1) {
+                const firstMsg = chatHistory.find(m => m.role === 'user');
+                const title = firstMsg ? firstMsg.content.substring(0, 30) + (firstMsg.content.length > 30 ? '...' : '') : '新研讨';
+                const user = Auth.getUser();
+                const userName = user ? user.display_name : '访客';
+                const messages = chatHistory.map(m => ({
+                    type: m.role === 'user' ? 'user' : 'ai',
+                    name: m.role === 'user' ? userName : (m.model || 'AI'),
+                    role: m.role === 'user' ? '用户' : 'AI 智能体',
+                    avatar: m.role === 'user' ? userName[0] : undefined,
+                    avatarBg: m.role === 'user' ? 'bg-gradient-to-br from-blue-400 to-blue-500' : undefined,
+                    icon: m.role !== 'user' ? 'fa-code' : undefined,
+                    iconBg: m.role !== 'user' ? 'bg-blue-100' : undefined,
+                    iconColor: m.role !== 'user' ? 'text-blue-600' : undefined,
+                    content: m.content,
+                    time: new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'})
+                }));
+                saveCurrentConversation(title, messages);
+            }
+            document.getElementById('welcome-screen').classList.remove('hidden');
+            document.getElementById('chat-content').classList.add('hidden');
+            document.getElementById('chat-content').innerHTML = '';
+            chatHistory = [];
+            currentConvId = null;
+            currentRoomId = null;
+            currentRoomData = null;
+            loadMyRooms();
+        }
+
+        // ── 真实 API 调用配置 ──────────────────────────────
+        const MODEL_MAP = {
+            'DeepSeek V3': { id: 'deepseek-v3', color: 'blue', icon: 'fa-code', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+            '文心一言':     { id: 'wenxin',      color: 'indigo', icon: 'fa-brain', iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600' },
+            '通义千问':     { id: 'qianwen',     color: 'red', icon: 'fa-cloud', iconBg: 'bg-red-100', iconColor: 'text-red-600' },
+            'GPT-4':       { id: 'gpt-4',       color: 'green', icon: 'fa-microchip', iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+            'Claude':      { id: 'claude',      color: 'sky', icon: 'fa-feather', iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+            'Gemini':      { id: 'gemini',      color: 'cyan', icon: 'fa-star', iconBg: 'bg-cyan-100', iconColor: 'text-cyan-600' },
+            'Kimi':        { id: 'kimi',        color: 'violet', icon: 'fa-moon', iconBg: 'bg-violet-100', iconColor: 'text-violet-600' },
+            'GLM-4':       { id: 'glm-4',       color: 'rose', icon: 'fa-bolt', iconBg: 'bg-rose-100', iconColor: 'text-rose-600' },
+        };
+
+        let chatHistory = [];
+        let isSending = false;
+
+        function getSelectedModels() {
+            return aiMembers.filter(m => m.active).map(m => ({
+                name: m.name,
+                ...(MODEL_MAP[m.name] || { id: m.modelId || 'deepseek-v3', color: 'blue', icon: m.icon, iconBg: m.iconBg, iconColor: m.iconColor }),
+            }));
+        }
+
+        /** Parse @mentions from message text, return targeted model names or null for all */
+        function parseMentions(message) {
+            const mentionRegex = /@([\u4e00-\u9fa5a-zA-Z0-9\-_ ]+)/g;
+            const mentions = [];
+            let match;
+            while ((match = mentionRegex.exec(message)) !== null) {
+                const name = match[1].trim();
+                if (aiMembers.some(m => m.name === name && m.active)) {
+                    mentions.push(name);
+                }
+            }
+            return mentions.length > 0 ? mentions : null;
+        }
+
+        async function sendMessage() {
+            if (isSending) return;
+            const inputField = document.getElementById('user-input');
+            const message = inputField.value.trim();
+            if (!message) return;
+
+            isSending = true;
+            const user = Auth.getUser();
+            const userName = user ? user.display_name : '访客';
+            const userAvatar = user ? (user.avatar || userName[0]) : '?';
+
+            // 1. 切换视图
+            document.getElementById('welcome-screen').classList.add('hidden');
+            const chatContent = document.getElementById('chat-content');
+            chatContent.classList.remove('hidden');
+
+            // 2. 插入用户消息
+            const currentTime = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+            const userHtml = `
+                <div class="flex justify-end ai-bubble-enter group">
+                    <div class="flex flex-col items-end max-w-[80%]">
+                        <div class="flex items-center gap-2 mb-1 mr-1">
+                            <span class="text-xs text-slate-400">${currentTime}</span>
+                            <span class="text-xs font-medium text-slate-600">${userName}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700 border border-blue-200">用户</span>
+                        </div>
+                        <div class="bg-slate-800 text-white rounded-2xl rounded-tr-sm py-3 px-5 shadow-md shadow-slate-800/10">
+                            ${message}
+                        </div>
+                    </div>
+                    <div class="w-9 h-9 ml-3 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold shadow-sm flex-shrink-0 mt-6 ring-2 ring-slate-200">
+                        ${userAvatar}
+                    </div>
+                </div>
+            `;
+            chatContent.insertAdjacentHTML('beforeend', userHtml);
+            inputField.value = '';
+            inputField.style.height = '52px';
+
+            // 记录历史
+            chatHistory.push({ role: 'user', content: message });
+
+            // 3. 获取选中模型（支持@mention指定）
+            const mentions = parseMentions(message);
+            let models = getSelectedModels();
+            if (mentions) {
+                models = models.filter(m => mentions.includes(m.name));
+            }
+            if (models.length === 0) {
+                showAIResponse('系统提示', 'blue', 'fa-info-circle', '请至少选中一个 AI 模型！');
+                isSending = false;
+                return;
+            }
+
+            // 4. 为每个模型创建"思考中"占位符
+            const placeholders = {};
+            models.forEach(model => {
+                const pid = 'ai-resp-' + model.id + '-' + Date.now();
+                placeholders[model.id] = pid;
+                showAIPlaceholder(model.name, model.iconBg, model.iconColor, model.icon, pid);
+            });
+
+            // 5. 滚动到底部
+            scrollToBottom();
+
+            // 6. 构建增强 system_prompt（主题聚焦 + 知识库上下文）
+            function buildEnhancedPrompt(memberPrompt, perAIKnowledge) {
+                const topic = currentRoomData?.topic || '';
+                let prompt = memberPrompt || '';
+                // 基础指令
+                const baseInstr = `你正在参与一场多人多AI协作研讨。请用中文回复，不要使用任何Markdown格式符号（如**、#、-列表、\`代码块\`等），用纯文本自然段落回复。
+要求：
+1. 紧密围绕研讨主题展开，不跑题。
+2. 认真阅读用户的输入，给出针对性的回答。
+3. 如果聊天记录中有其他AI的回复，审慎参考但保持独立思考，避免简单附和。
+4. 如果发现其他AI的观点有明显问题，请礼貌指出并给出你的分析。
+5. 如果参考了知识库内容，请用自己的语言表述，不要原样引用格式。`;
+                if (topic) {
+                    prompt = `【本次研讨主题】${topic}\n\n${baseInstr}\n\n${prompt ? '【你的角色设定】' + prompt : ''}`;
+                } else {
+                    prompt = `${baseInstr}\n\n${prompt ? '【你的角色设定】' + prompt : ''}`;
+                }
+                // 注入知识库上下文（全局 + 该AI私有）
+                const allKnowledge = [...knowledgeFiles, ...(perAIKnowledge || [])];
+                if (allKnowledge.length > 0) {
+                    const allText = allKnowledge.map(f => `--- ${f.name} ---\n${f.text}`).join('\n\n');
+                    const charLimit = 30000; // 避免超过模型限制
+                    const truncated = allText.length > charLimit ? allText.slice(0, charLimit) + '\n...(已截断)' : allText;
+                    prompt += `\n\n【参考资料（知识库）】\n${truncated}`;
+                }
+                return prompt;
+            }
+
+            // 7. 并行调用每个模型的 API（支持认证 + room_id 持久化）
+            const promises = models.map(async (model, modelIndex) => {
+                const pid = placeholders[model.id];
+                try {
+                    const reqBody = {
+                        message: message,
+                        model_id: model.id,
+                        history: chatHistory.slice(-20),
+                        persist_user: modelIndex === 0, // 仅第一个模型持久化用户消息
+                    };
+                    if (currentRoomId) reqBody.room_id = currentRoomId;
+                    // 查找该模型对应的 AI 成员，注入增强 system_prompt + 私有知识库
+                    const member = aiMembers.find(m => m.name === model.name);
+                    const aiKnowledge = member?.id ? (ScopedStorage.get('tw_ai_knowledge_' + member.id, currentRoomId) || []) : [];
+                    reqBody.system_prompt = buildEnhancedPrompt(member?.systemPrompt || '', aiKnowledge);
+
+                    const fetchFn = Auth.isLoggedIn() ? Auth.apiCall : fetch;
+                    const resp = await fetchFn('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reqBody),
+                    });
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        updateAIPlaceholder(pid, data.content, model.name);
+                        chatHistory.push({ role: 'assistant', content: '[' + model.name + '] ' + data.content });
+                    } else {
+                        const err = await resp.json().catch(() => ({ detail: '服务器错误' }));
+                        updateAIPlaceholder(pid, '⚠️ ' + (err.detail || '调用失败'));
+                    }
+                } catch (e) {
+                    updateAIPlaceholder(pid, '⚠️ 网络错误: ' + e.message);
+                }
+            });
+
+            await Promise.allSettled(promises);
+            isSending = false;
+            scrollToBottom(true);
+        }
+
+        function showAIPlaceholder(name, iconBg, iconColor, icon, placeholderId) {
+            const chatContent = document.getElementById('chat-content');
+            const currentTime = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+            const aiHtml = `
+                <div class="flex items-start ai-bubble-enter w-full group" id="${placeholderId}">
+                    <div class="w-9 h-9 mr-3 rounded-full ${iconBg} ${iconColor} flex items-center justify-center flex-shrink-0 shadow-sm mt-6">
+                        <i class="fa-solid ${icon} text-sm"></i>
+                    </div>
+                    <div class="flex-1 max-w-[90%]">
+                        <div class="flex items-center gap-2 mb-1 ml-1">
+                            <span class="text-xs font-bold text-slate-700">${name}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200">AI 智能体</span>
+                            <span class="text-xs text-slate-400 ml-1">${currentTime}</span>
+                        </div>
+                        <div class="bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-sm py-4 px-6 shadow-sm shadow-slate-200/50">
+                            <div class="ai-thinking flex items-center gap-2 text-sm text-slate-400">
+                                <svg class="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                思考中...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContent.insertAdjacentHTML('beforeend', aiHtml);
+        }
+
+        /** 去除 Markdown 格式，返回纯文本 HTML（换行转 <br>） */
+        function stripMarkdown(text) {
+            return text
+                .replace(/```[\s\S]*?```/g, m => m.replace(/```\w*\n?/g, '').trim())
+                .replace(/\*\*([\s\S]+?)\*\*/g, '$1')
+                .replace(/__([\s\S]+?)__/g, '$1')
+                .replace(/\*([^\n*]+?)\*/g, '$1')
+                .replace(/_([^\n_]+?)_/g, '$1')
+                .replace(/#{1,6}\s*/g, '')
+                .replace(/^[-*+]\s+/gm, '· ')
+                .replace(/^\d+\.\s+/gm, '')
+                .replace(/`([^`]+)`/g, '$1')
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/^>\s?/gm, '')
+                .replace(/---+/g, '')
+                .replace(/\*{2,}/g, '')
+                .replace(/\n/g, '<br>');
+        }
+
+        function updateAIPlaceholder(placeholderId, content, aiName) {
+            const el = document.getElementById(placeholderId);
+            if (!el) return;
+            const contentDiv = el.querySelector('.bg-white');
+            if (contentDiv) {
+                let html = stripMarkdown(content);
+                const safeName = (aiName || '').replace(/'/g, "\\'");
+                contentDiv.innerHTML = `
+                    <p class="leading-relaxed text-sm">${html}</p>
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex gap-4 text-xs text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onclick="adoptOpinion('${safeName}', this)" class="hover:text-blue-600 flex items-center gap-1.5 transition"><i class="fa-regular fa-thumbs-up"></i> 采纳</button>
+                        <button onclick="scoreOpinion(this)" class="hover:text-blue-600 flex items-center gap-1.5 transition"><i class="fa-solid fa-chart-simple"></i> 打分</button>
+                        <button onclick="copyAIContent(this)" class="hover:text-blue-600 flex items-center gap-1.5 transition"><i class="fa-regular fa-copy"></i> 复制</button>
+                    </div>
+                `;
+            }
+            scrollToBottom(true);
+        }
+
+        function copyAIContent(btn) {
+            const card = btn.closest('.bg-white');
+            const text = card.querySelector('p').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 已复制';
+                setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i> 复制'; }, 2000);
+            });
+        }
+
+        function showAIResponse(name, colorTheme, icon, content) {
+            const chatContent = document.getElementById('chat-content');
+            const currentTime = new Date().toLocaleTimeString('zh-CN', {hour: '2-digit', minute: '2-digit'});
+            
+            const colors = {
+                'blue': { iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+                'indigo': { iconBg: 'bg-indigo-100', iconColor: 'text-indigo-600' },
+                'red': { iconBg: 'bg-red-100', iconColor: 'text-red-600' },
+                'green': { iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+            };
+            const c = colors[colorTheme] || colors['blue'];
+
+            const aiHtml = `
+                <div class="flex items-start ai-bubble-enter w-full group">
+                    <div class="w-9 h-9 mr-3 rounded-full ${c.iconBg} ${c.iconColor} flex items-center justify-center flex-shrink-0 shadow-sm mt-6">
+                        <i class="fa-solid ${icon} text-sm"></i>
+                    </div>
+                    <div class="flex-1 max-w-[90%]">
+                        <div class="flex items-center gap-2 mb-1 ml-1">
+                            <span class="text-xs font-bold text-slate-700">${name}</span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-500 border border-slate-200">AI 智能体</span>
+                            <span class="text-xs text-slate-400 ml-1">${currentTime}</span>
+                        </div>
+                        <div class="bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-sm py-4 px-6 shadow-sm shadow-slate-200/50">
+                            <p class="leading-relaxed text-sm">${content}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            chatContent.insertAdjacentHTML('beforeend', aiHtml);
+            const container = document.getElementById('chat-container');
+            container.scrollTop = container.scrollHeight;
+        }
+
+        // ═══ 智能滚动到底部 ═══════════════════════════════
+        function scrollToBottom(smooth) {
+            const container = document.getElementById('chat-container');
+            if (!container) return;
+            const doScroll = () => {
+                if (smooth) {
+                    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                } else {
+                    container.scrollTop = container.scrollHeight;
+                }
+            };
+            doScroll();
+            // 延迟再滚一次，确保动态内容渲染完成
+            requestAnimationFrame(() => requestAnimationFrame(doScroll));
+        }
+
+        // 监听聊天区域变化自动滚动
+        (function initAutoScroll() {
+            const chatContent = document.getElementById('chat-content');
+            if (!chatContent) return;
+            const observer = new MutationObserver(() => {
+                const container = document.getElementById('chat-container');
+                if (!container) return;
+                // 仅在用户接近底部时自动滚动（距底部200px以内）
+                const nearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 200;
+                if (nearBottom) scrollToBottom(true);
+            });
+            observer.observe(chatContent, { childList: true, subtree: true, characterData: true });
+        })();
+
+        // ═══ 打分功能 ═══════════════════════════════════
+        function scoreOpinion(btn) {
+            // 如果已有打分面板则移除
+            const existing = btn.closest('.bg-white').querySelector('.score-panel');
+            if (existing) { existing.remove(); return; }
+
+            const card = btn.closest('.bg-white');
+            const panel = document.createElement('div');
+            panel.className = 'score-panel mt-3 pt-3 border-t border-slate-100 flex items-center gap-2';
+            panel.innerHTML = `
+                <span class="text-xs text-slate-500 mr-1">评分:</span>
+                ${[1,2,3,4,5].map(n => `
+                    <button onclick="applyScore(${n}, this)" class="score-star w-7 h-7 rounded-full border border-slate-200 hover:border-blue-400 hover:bg-blue-50 flex items-center justify-center transition text-slate-300 hover:text-blue-500" data-score="${n}">
+                        <i class="fa-solid fa-star text-xs"></i>
+                    </button>
+                `).join('')}
+                <span class="score-label text-xs text-slate-400 ml-1"></span>
+            `;
+            card.appendChild(panel);
+        }
+
+        function applyScore(score, starBtn) {
+            const panel = starBtn.closest('.score-panel');
+            const stars = panel.querySelectorAll('.score-star');
+            const labels = ['', '较差', '一般', '良好', '很好', '优秀'];
+            stars.forEach(s => {
+                const v = parseInt(s.dataset.score);
+                if (v <= score) {
+                    s.classList.add('text-blue-500', 'border-blue-400', 'bg-blue-50');
+                    s.classList.remove('text-slate-300', 'border-slate-200');
+                } else {
+                    s.classList.remove('text-blue-500', 'border-blue-400', 'bg-blue-50');
+                    s.classList.add('text-slate-300', 'border-slate-200');
+                }
+            });
+            panel.querySelector('.score-label').textContent = labels[score] + ' (' + score + '/5)';
+            // 把评分写到对应消息卡片上
+            const card = panel.closest('.bg-white');
+            card.dataset.score = score;
+            showToast('已评分: ' + score + '/5 ' + labels[score]);
+        }
+
+        // ═══ 导出采纳意见 ═══════════════════════════════
+        function exportAdoptedOpinions() {
+            if (adoptedOpinions.length === 0) {
+                showToast('暂无采纳意见可导出');
+                return;
+            }
+
+            // 收集已打分信息
+            let md = '# 采纳意见导出\n\n';
+            md += `**导出时间:** ${new Date().toLocaleString('zh-CN')}\n`;
+            md += `**房间ID:** ${currentRoomId || '默认'}\n`;
+            md += `**共计:** ${adoptedOpinions.length} 条\n\n`;
+            md += '---\n\n';
+
+            adoptedOpinions.forEach((o, i) => {
+                const plainText = o.content.replace(/<[^>]+>/g, '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+                md += `## ${i + 1}. ${o.aiName}\n\n`;
+                md += `${plainText}\n\n`;
+                if (o.score) md += `**评分:** ${'★'.repeat(o.score)}${'☆'.repeat(5 - o.score)} (${o.score}/5)\n\n`;
+                md += `*采纳时间: ${o.time}*\n\n`;
+                if (i < adoptedOpinions.length - 1) md += '---\n\n';
+            });
+
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `采纳意见_${new Date().toISOString().slice(0,10)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('✅ 已导出为 Markdown 文件');
+        }
+    </script>
+</body>
+</html>

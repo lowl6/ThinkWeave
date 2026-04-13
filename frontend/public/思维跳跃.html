@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>思维跳跃 (LeafHopper) - AI Co-Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <script src="workflow-nav.js"></script>
+    <script src="thinklet-common.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        .idea-node { transition: all 0.3s ease; }
+        .idea-node:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+        .idea-node.active-parent { border-color: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,0.2); }
+        .branch-line { position: relative; }
+        .branch-line::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: -16px;
+            width: 2px;
+            height: 16px;
+            background: #e2e8f0;
+        }
+        .round-tab { transition: all 0.2s ease; }
+        .round-tab.active { background: #22c55e; color: white; }
+        .fade-in { animation: fadeIn 0.4s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden">
+
+    <!-- 左侧流程 + 右侧成员由 thinklet-common.js 注入 -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <!-- 顶部导航 -->
+    <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm">
+        <div class="flex items-center gap-4">
+            <a href="自由头脑风暴.html" class="text-slate-400 hover:text-slate-600 transition" title="上一步：自由头脑风暴"><i class="fa-solid fa-arrow-left"></i></a>
+            <div class="flex flex-col">
+                <h1 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-leaf text-green-500"></i>
+                    思维跳跃 (LeafHopper)
+                </h1>
+                <span class="text-xs text-slate-500">多轮发散 · 基于已有观点跳跃生成新想法</span>
+            </div>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div class="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-bold border border-green-100">
+                <i class="fa-solid fa-hourglass-half"></i>
+                <span id="timer">09:59</span>
+            </div>
+        </div>
+
+        <div class="hidden md:flex items-center gap-2">
+            <div class="h-1.5 w-12 bg-green-200 rounded-full"></div>
+            <div class="h-1.5 w-12 bg-green-500 rounded-full"></div>
+            <div class="h-1.5 w-12 bg-slate-200 rounded-full"></div>
+            <div class="h-1.5 w-12 bg-slate-200 rounded-full"></div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="triggerAIExpand()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 发散
+            </button>
+            <button class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
+                下一步 <i class="fa-solid fa-arrow-right"></i>
+            </button>
+            <a href="首页.html" class="text-slate-400 hover:text-slate-600 transition ml-2" title="返回首页"><i class="fa-solid fa-home"></i></a>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- 主内容区：轮次 + 观点树 -->
+        <div class="flex-1 flex flex-col">
+            <!-- 轮次标签 -->
+            <div class="px-6 py-3 flex items-center gap-3 border-b border-slate-200 bg-white">
+                <span class="text-xs text-slate-400 font-bold uppercase">轮次:</span>
+                <button class="round-tab active px-4 py-1.5 rounded-full text-sm font-medium" onclick="switchRound(1)">第 1 轮 · 种子</button>
+                <button class="round-tab bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-sm font-medium" onclick="switchRound(2)">第 2 轮 · 发芽</button>
+                <button class="round-tab bg-slate-100 text-slate-500 px-4 py-1.5 rounded-full text-sm font-medium" onclick="switchRound(3)">第 3 轮 · 开花</button>
+                <div class="flex-1"></div>
+                <span class="text-xs text-slate-400">当前轮共 <span id="round-count" class="font-bold text-green-600">0</span> 条观点</span>
+            </div>
+
+            <!-- 观点网格 -->
+            <div id="ideas-area" class="flex-1 overflow-y-auto p-6 custom-scroll">
+                <!-- 第1轮种子观点（上一步带入） -->
+                <div id="round-1" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 空状态：从房间导入 -->
+                    <div id="empty-seeds-hint" class="col-span-full flex flex-col items-center justify-center py-12 text-center">
+                        <div class="w-16 h-16 rounded-2xl bg-green-50 text-green-500 flex items-center justify-center text-3xl mb-4"><i class="fa-solid fa-seedling"></i></div>
+                        <p class="text-slate-600 font-semibold mb-1">暂无种子观点</p>
+                        <p class="text-xs text-slate-400 mb-4">请手动输入或从当前房间导入已有观点作为发散起点</p>
+                        <button onclick="importFromRoom()" class="px-5 py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 text-white rounded-lg text-sm font-medium hover:shadow-lg transition flex items-center gap-2">
+                            <i class="fa-solid fa-file-import"></i> 从房间导入观点
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 第2轮/第3轮 隐藏 -->
+                <div id="round-2" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                <div id="round-3" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+            </div>
+
+            <!-- 底部输入 -->
+            <div class="bg-white border-t border-slate-200 p-4">
+                <div id="parent-hint" class="hidden text-xs text-green-600 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-link"></i>
+                    <span>基于 "<span id="parent-text"></span>" 发散</span>
+                    <button onclick="clearParent()" class="text-slate-400 hover:text-red-500 ml-2"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="flex gap-3 max-w-4xl mx-auto">
+                    <input id="user-input" type="text" placeholder="基于选中观点，输入你的新想法... (先点击上方卡片选中母观点)" 
+                        class="flex-1 px-4 py-3 rounded-xl border border-slate-300 focus:border-green-400 focus:ring-2 focus:ring-green-100 outline-none text-sm"
+                        onkeydown="if(event.key==='Enter') addUserIdea()">
+                    <button onclick="addUserIdea()" class="bg-green-500 hover:bg-green-600 text-white px-6 py-3 rounded-xl font-medium transition shadow-md">
+                        <i class="fa-solid fa-seedling mr-1"></i> 发散
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧面板：发散轨迹 -->
+        <aside class="w-80 bg-white border-l border-slate-200 flex flex-col hidden lg:flex">
+            <div class="p-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-sitemap text-green-500"></i> 发散轨迹</h3>
+            </div>
+            <div id="trace-panel" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll">
+                <div class="text-xs text-slate-400 text-center py-8">发散后将在此显示轨迹</div>
+            </div>
+            <div class="p-4 border-t border-slate-100 bg-slate-50">
+                <div class="flex items-center justify-between text-sm">
+                    <span class="text-slate-500">总观点数</span>
+                    <span class="font-bold text-green-600 text-lg" id="total-count">0</span>
+                </div>
+                <div class="flex items-center justify-between text-sm mt-1">
+                    <span class="text-slate-500">发散层级</span>
+                    <span class="font-bold text-slate-700">3 轮</span>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        let currentRound = 1;
+        let selectedParentId = null;
+        let selectedParentText = '';
+        let ideaCounter = 0;
+
+        function switchRound(round) {
+            currentRound = round;
+            document.querySelectorAll('.round-tab').forEach((t, i) => {
+                t.classList.toggle('active', i + 1 === round);
+                if (i + 1 !== round) { t.classList.add('bg-slate-100', 'text-slate-500'); t.classList.remove('bg-green-500', 'text-white'); }
+            });
+            document.querySelectorAll('[id^="round-"]').forEach(el => el.classList.add('hidden'));
+            document.getElementById('round-' + round).classList.remove('hidden');
+            const count = document.getElementById('round-' + round).children.length;
+            document.getElementById('round-count').textContent = count;
+        }
+
+        function selectParent(el, id) {
+            document.querySelectorAll('.idea-node').forEach(n => n.classList.remove('active-parent'));
+            el.classList.add('active-parent');
+            selectedParentId = id;
+            selectedParentText = el.querySelector('p').textContent.trim();
+            document.getElementById('parent-hint').classList.remove('hidden');
+            document.getElementById('parent-text').textContent = selectedParentText.substring(0, 30) + (selectedParentText.length > 30 ? '...' : '');
+            document.getElementById('user-input').placeholder = '输入基于"' + selectedParentText.substring(0, 20) + '..."的新想法';
+            document.getElementById('user-input').focus();
+        }
+
+        function clearParent() {
+            selectedParentId = null;
+            selectedParentText = '';
+            document.querySelectorAll('.idea-node').forEach(n => n.classList.remove('active-parent'));
+            document.getElementById('parent-hint').classList.add('hidden');
+            document.getElementById('user-input').placeholder = '基于选中观点，输入你的新想法... (先点击上方卡片选中母观点)';
+        }
+
+        function addUserIdea() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text) return;
+            if (!selectedParentId) { alert('请先点击一个观点作为发散起点'); return; }
+            
+            ideaCounter++;
+            const targetRound = currentRound < 3 ? currentRound + 1 : currentRound;
+            const grid = document.getElementById('round-' + targetRound);
+            
+            const card = document.createElement('div');
+            card.className = 'idea-node bg-white p-4 rounded-xl border-2 border-green-200 shadow-sm cursor-pointer relative fade-in branch-line';
+            card.setAttribute('data-id', 'idea-' + ideaCounter);
+            card.setAttribute('onclick', `selectParent(this, 'idea-${ideaCounter}')`);
+            card.innerHTML = `
+                <div class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-green-500 text-white text-xs flex items-center justify-center font-bold shadow">${ideaCounter}</div>
+                <div class="flex items-center gap-2 mb-2 mt-1">
+                    <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold"><i class="fa-solid fa-user text-[8px]"></i></div>
+                    <span class="text-xs text-slate-400 font-bold">用户 · R${targetRound}</span>
+                    <span class="text-[10px] bg-green-50 text-green-600 px-1.5 rounded border border-green-100">← 发散自 #${selectedParentId.replace('idea-','')}</span>
+                </div>
+                <p class="text-sm text-slate-700 font-medium leading-relaxed">${text}</p>
+            `;
+            grid.appendChild(card);
+            
+            if (targetRound !== currentRound) switchRound(targetRound);
+            input.value = '';
+            document.getElementById('total-count').textContent = parseInt(document.getElementById('total-count').textContent) + 1;
+            document.getElementById('round-count').textContent = grid.children.length;
+        }
+
+        async function triggerAIExpand() {
+            if (!selectedParentId) { alert('请先点击一个观点作为AI发散起点'); return; }
+            const btn = document.querySelector('[onclick="triggerAIExpand()"]');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 思考中...';
+            btn.disabled = true;
+
+            try {
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: `请基于"${selectedParentText}"这个观点，发散出2-3个新的相关但不同角度的子想法。每个想法一行，不要编号，不要解释。`,
+                        model_id: 'deepseek-v3',
+                        history: [],
+                        system_prompt: '你是一个创意发散助手。用户会给你一个观点，你需要基于它跳跃式发散出新想法。每个想法独立一行，简洁表达，不超过30字。'
+                    })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const ideas = data.content.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+                    const targetRound = currentRound < 3 ? currentRound + 1 : currentRound;
+                    const grid = document.getElementById('round-' + targetRound);
+                    ideas.forEach(idea => {
+                        ideaCounter++;
+                        const card = document.createElement('div');
+                        card.className = 'idea-node bg-white p-4 rounded-xl border-2 border-blue-200 shadow-sm cursor-pointer relative fade-in branch-line';
+                        card.setAttribute('data-id', 'idea-' + ideaCounter);
+                        card.setAttribute('onclick', `selectParent(this, 'idea-${ideaCounter}')`);
+                        card.innerHTML = `
+                            <div class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-blue-500 text-white text-xs flex items-center justify-center font-bold shadow">${ideaCounter}</div>
+                            <div class="flex items-center gap-2 mb-2 mt-1">
+                                <div class="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs"><i class="fa-solid fa-code"></i></div>
+                                <span class="text-xs text-slate-400 font-bold">DeepSeek · R${targetRound}</span>
+                                <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 rounded border border-blue-100">AI 发散 ← #${selectedParentId.replace('idea-','')}</span>
+                            </div>
+                            <p class="text-sm text-slate-700 font-medium leading-relaxed">${idea}</p>
+                        `;
+                        grid.appendChild(card);
+                    });
+                    if (targetRound !== currentRound) switchRound(targetRound);
+                    document.getElementById('total-count').textContent = parseInt(document.getElementById('total-count').textContent) + ideas.length;
+                    document.getElementById('round-count').textContent = grid.children.length;
+                } else {
+                    alert('AI 调用失败，请检查 API Key 配置');
+                }
+            } catch (e) {
+                alert('网络错误: ' + e.message);
+            }
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 发散';
+            btn.disabled = false;
+        }
+
+        // 从上一步导入种子数据
+        async function importFromRoom() {
+            const seeds = ThinkLetCommon.loadSeedData();
+            if (seeds && seeds.length > 0) {
+                loadSeedsFromArray(seeds);
+                return;
+            }
+            alert('当前房间暂无可导入的观点。请先完成上一个流程环节。');
+        }
+
+        function loadSeedsFromArray(items) {
+            const grid = document.getElementById('round-1');
+            const hint = document.getElementById('empty-seeds-hint');
+            if (hint) hint.remove();
+
+            items.forEach(text => {
+                if (!text || (typeof text === 'string' && !text.trim())) return;
+                const t = typeof text === 'string' ? text.trim() : (text.content || text.text || String(text)).trim();
+                if (!t) return;
+                ideaCounter++;
+                const card = document.createElement('div');
+                card.className = 'idea-node bg-white p-4 rounded-xl border-2 border-slate-200 shadow-sm cursor-pointer relative fade-in';
+                card.setAttribute('data-id', 'idea-' + ideaCounter);
+                card.setAttribute('onclick', `selectParent(this, 'idea-${ideaCounter}')`);
+                card.innerHTML = `
+                    <div class="absolute -top-2 -left-2 w-6 h-6 rounded-full bg-green-500 text-white text-xs flex items-center justify-center font-bold shadow">${ideaCounter}</div>
+                    <div class="flex items-center gap-2 mb-2 mt-1">
+                        <div class="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs"><i class="fa-solid fa-file-import text-[8px]"></i></div>
+                        <span class="text-xs text-slate-400 font-bold">导入 · R1</span>
+                    </div>
+                    <p class="text-sm text-slate-700 font-medium leading-relaxed">${t}</p>
+                `;
+                grid.appendChild(card);
+            });
+            document.getElementById('round-count').textContent = grid.querySelectorAll('.idea-node').length;
+            document.getElementById('total-count').textContent = ideaCounter;
+        }
+
+        // 收集所有发散节点并保存为步骤结果
+        function saveLeafHopperResults() {
+            const allNodes = document.querySelectorAll('.idea-node p');
+            const results = [];
+            allNodes.forEach((p, i) => {
+                results.push({ id: i + 1, text: p.textContent.trim(), author: '思维跳跃', votes: 0 });
+            });
+            if (results.length > 0) ThinkLetCommon.saveStepResult(results);
+        }
+        window.addEventListener('beforeunload', saveLeafHopperResults);
+
+        // ═══ 初始化 ═══
+        ThinkLetCommon.init();
+        if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) WorkflowNav.updateNextButton();
+        // 自动导入种子数据
+        importFromRoom();
+    </script>
+    </div>
+</body>
+</html>

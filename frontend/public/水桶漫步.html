@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水桶漫步 (BucketWalk) - AI Co-Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <script src="workflow-nav.js"></script>
+    <script src="thinklet-common.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scroll::-webkit-scrollbar { width: 6px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        .bucket { transition: all 0.3s ease; min-height: 120px; }
+        .bucket.drag-over { transform: scale(1.02); box-shadow: 0 0 0 3px rgba(99,102,241,0.3); }
+        .idea-chip { transition: all 0.2s ease; cursor: grab; }
+        .idea-chip:active { cursor: grabbing; }
+        .idea-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .idea-chip.dragging { opacity: 0.5; }
+
+        .bucket-colors { --c0: #3b82f6; --c1: #22c55e; --c2: #f59e0b; --c3: #ef4444; --c4: #8b5cf6; --c5: #06b6d4; }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen flex overflow-hidden bucket-colors">
+
+    <!-- 左侧流程 + 右侧成员由 thinklet-common.js 注入 -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+    <!-- 顶部 -->
+    <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm">
+        <div class="flex items-center gap-4">
+            <a href="快速聚焦.html" class="text-slate-400 hover:text-slate-600 transition" title="上一步：快速聚焦"><i class="fa-solid fa-arrow-left"></i></a>
+            <div class="flex flex-col">
+                <h1 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-bucket text-indigo-500"></i>
+                    水桶漫步 (BucketWalk)
+                </h1>
+                <span class="text-xs text-slate-500">拖拽观点到对应分类桶中 · AI 智能分桶建议</span>
+            </div>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div class="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold border border-indigo-100">
+                <i class="fa-solid fa-hourglass-half"></i>
+                <span id="timer">07:59</span>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <button onclick="triggerAIClassify()" class="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> AI 自动分桶
+            </button>
+            <button onclick="addBucket()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition flex items-center gap-2">
+                <i class="fa-solid fa-plus"></i> 新建桶
+            </button>
+            <button onclick="confirmClassify()" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
+                确认分类 <i class="fa-solid fa-check"></i>
+            </button>
+            <a href="首页.html" class="text-slate-400 hover:text-slate-600 transition ml-2" title="返回首页"><i class="fa-solid fa-home"></i></a>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- 左侧：未分类观点池 -->
+        <aside class="w-72 bg-white border-r border-slate-200 flex flex-col">
+            <div class="p-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-solid fa-inbox text-slate-400"></i> 未分类观点
+                    <span class="ml-auto text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full" id="unassigned-count">8</span>
+                </h3>
+            </div>
+            <div id="unassigned-pool" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scroll"
+                 ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'unassigned')">
+            </div>
+        </aside>
+
+        <!-- 分桶主区域 -->
+        <div class="flex-1 overflow-y-auto p-6 custom-scroll">
+            <div id="buckets-grid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            </div>
+        </div>
+
+        <!-- 右侧：活动和统计 -->
+        <aside class="w-72 bg-white border-l border-slate-200 flex flex-col hidden lg:flex">
+            <div class="p-4 border-b border-slate-100">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-chart-bar text-indigo-500"></i> 分桶统计</h3>
+            </div>
+            <div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll">
+                <div id="bucket-stats" class="space-y-3"></div>
+
+                <div class="pt-4 border-t border-slate-100">
+                    <h4 class="text-xs font-bold text-slate-400 uppercase mb-2">实时活动</h4>
+                    <div id="activity-feed" class="space-y-2">
+                        <div class="flex items-center gap-2 text-xs text-slate-500">
+                            <div class="w-5 h-5 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold"><i class="fa-solid fa-user text-[8px]"></i></div>
+                            <span>会话已开始</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <script>
+        const BUCKET_COLORS = ['#3b82f6', '#22c55e', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
+        const BUCKET_BG = ['bg-blue-50', 'bg-green-50', 'bg-blue-50', 'bg-red-50', 'bg-purple-50', 'bg-cyan-50'];
+        const BUCKET_BORDER = ['border-blue-200', 'border-green-200', 'border-blue-200', 'border-red-200', 'border-purple-200', 'border-cyan-200'];
+        const BUCKET_TEXT = ['text-blue-700', 'text-green-700', 'text-blue-700', 'text-red-700', 'text-purple-700', 'text-cyan-700'];
+
+        let buckets = [
+            { id: 'bucket-1', name: '分类 A', ideas: [] },
+            { id: 'bucket-2', name: '分类 B', ideas: [] },
+            { id: 'bucket-3', name: '分类 C', ideas: [] },
+        ];
+
+        // 从共享数据加载（ThinkLetCommon 标准加载）
+        const _roomId = ThinkLetCommon.getRoomId();
+        const seedData = ThinkLetCommon.loadSeedData();
+        let allIdeas = seedData.length > 0 ? seedData.map((item, i) => ({
+            id: 'i' + (item.id || (i + 1)),
+            text: item.text,
+            source: item.author || 'AI',
+        })) : [
+            { id: 'i1', text: '暂无数据 — 请在首页采纳意见后跳转到此页面', source: '系统' },
+        ];
+
+        let unassignedIds = allIdeas.map(i => i.id);
+        let draggedId = null;
+
+        function getIdea(id) { return allIdeas.find(i => i.id === id); }
+
+        function render() {
+            renderPool();
+            renderBuckets();
+            renderStats();
+        }
+
+        function renderPool() {
+            const pool = document.getElementById('unassigned-pool');
+            pool.innerHTML = '';
+            unassignedIds.forEach(id => {
+                const idea = getIdea(id);
+                const chip = document.createElement('div');
+                chip.className = 'idea-chip bg-white p-3 rounded-lg border border-slate-200 shadow-sm text-sm';
+                chip.draggable = true;
+                chip.setAttribute('data-id', id);
+                chip.ondragstart = (e) => { draggedId = id; chip.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; };
+                chip.ondragend = () => chip.classList.remove('dragging');
+                chip.innerHTML = `
+                    <div class="text-[10px] text-slate-400 font-bold mb-1">${idea.source}</div>
+                    <div class="text-slate-700 font-medium">${idea.text}</div>
+                `;
+                pool.appendChild(chip);
+            });
+            document.getElementById('unassigned-count').textContent = unassignedIds.length;
+        }
+
+        function renderBuckets() {
+            const grid = document.getElementById('buckets-grid');
+            grid.innerHTML = '';
+            buckets.forEach((bucket, idx) => {
+                const ci = idx % BUCKET_COLORS.length;
+                const el = document.createElement('div');
+                el.className = `bucket ${BUCKET_BG[ci]} border-2 ${BUCKET_BORDER[ci]} rounded-2xl p-4 flex flex-col`;
+                el.ondragover = (e) => { e.preventDefault(); el.classList.add('drag-over'); };
+                el.ondragleave = () => el.classList.remove('drag-over');
+                el.ondrop = (e) => { e.preventDefault(); el.classList.remove('drag-over'); handleDrop(e, bucket.id); };
+
+                const headerHtml = `
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-3 h-3 rounded-full" style="background:${BUCKET_COLORS[ci]}"></div>
+                            <span class="font-bold ${BUCKET_TEXT[ci]}">${bucket.name}</span>
+                            <span class="text-xs ${BUCKET_TEXT[ci]} opacity-60">${bucket.ideas.length}</span>
+                        </div>
+                        <button onclick="renameBucket('${bucket.id}')" class="text-slate-300 hover:text-slate-500 text-xs"><i class="fa-solid fa-pen"></i></button>
+                    </div>
+                `;
+                let ideasHtml = '<div class="space-y-2 flex-1">';
+                bucket.ideas.forEach(id => {
+                    const idea = getIdea(id);
+                    ideasHtml += `
+                        <div class="idea-chip bg-white/80 backdrop-blur p-2.5 rounded-lg border border-white shadow-sm text-xs fade-in"
+                             draggable="true" data-id="${id}"
+                             ondragstart="draggedId='${id}'; this.classList.add('dragging')"
+                             ondragend="this.classList.remove('dragging')">
+                            <div class="text-[10px] text-slate-400 font-bold">${idea.source}</div>
+                            <div class="text-slate-700 font-medium mt-0.5">${idea.text}</div>
+                        </div>
+                    `;
+                });
+                if (bucket.ideas.length === 0) {
+                    ideasHtml += `<div class="text-xs text-slate-400 text-center py-6 border-2 border-dashed ${BUCKET_BORDER[ci]} rounded-lg">拖拽观点到此处</div>`;
+                }
+                ideasHtml += '</div>';
+
+                el.innerHTML = headerHtml + ideasHtml;
+                grid.appendChild(el);
+            });
+        }
+
+        function renderStats() {
+            const statsEl = document.getElementById('bucket-stats');
+            statsEl.innerHTML = '';
+            buckets.forEach((bucket, idx) => {
+                const ci = idx % BUCKET_COLORS.length;
+                const pct = allIdeas.length > 0 ? Math.round(bucket.ideas.length / allIdeas.length * 100) : 0;
+                statsEl.innerHTML += `
+                    <div>
+                        <div class="flex items-center justify-between text-sm mb-1">
+                            <div class="flex items-center gap-2">
+                                <div class="w-2.5 h-2.5 rounded-full" style="background:${BUCKET_COLORS[ci]}"></div>
+                                <span class="font-medium text-slate-600">${bucket.name}</span>
+                            </div>
+                            <span class="font-bold text-slate-700">${bucket.ideas.length}</span>
+                        </div>
+                        <div class="w-full bg-slate-100 rounded-full h-1.5">
+                            <div class="h-1.5 rounded-full transition-all" style="width:${pct}%;background:${BUCKET_COLORS[ci]}"></div>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function handleDragOver(e) { e.preventDefault(); }
+
+        function handleDrop(e, targetId) {
+            if (!draggedId) return;
+            // remove from everywhere
+            unassignedIds = unassignedIds.filter(i => i !== draggedId);
+            buckets.forEach(b => { b.ideas = b.ideas.filter(i => i !== draggedId); });
+            // add to target
+            if (targetId === 'unassigned') {
+                unassignedIds.push(draggedId);
+            } else {
+                const bucket = buckets.find(b => b.id === targetId);
+                if (bucket) bucket.ideas.push(draggedId);
+            }
+            addActivity(`移动 "${getIdea(draggedId).text.substring(0, 15)}..." 到 ${targetId === 'unassigned' ? '未分类' : buckets.find(b => b.id === targetId).name}`);
+            draggedId = null;
+            render();
+        }
+
+        function addBucket() {
+            const name = prompt('输入桶名称:');
+            if (!name) return;
+            const id = 'bucket-' + (buckets.length + 1);
+            buckets.push({ id, name, ideas: [] });
+            render();
+        }
+
+        function renameBucket(id) {
+            const bucket = buckets.find(b => b.id === id);
+            const name = prompt('重命名桶:', bucket.name);
+            if (name) { bucket.name = name; render(); }
+        }
+
+        function addActivity(text) {
+            const feed = document.getElementById('activity-feed');
+            const el = document.createElement('div');
+            el.className = 'flex items-center gap-2 text-xs text-slate-500 fade-in';
+            el.innerHTML = `<div class="w-5 h-5 rounded-full bg-purple-100 text-purple-600 flex items-center justify-center text-[10px] font-bold">刘</div><span>${text}</span>`;
+            feed.prepend(el);
+        }
+
+        async function triggerAIClassify() {
+            if (unassignedIds.length === 0) { alert('没有未分类的观点'); return; }
+            const btn = document.querySelector('[onclick="triggerAIClassify()"]');
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> AI 分析中...';
+            btn.disabled = true;
+
+            const bucketNames = buckets.map(b => b.name).join('、');
+            const ideaTexts = unassignedIds.map(id => { const i = getIdea(id); return `${id}: ${i.text}`; }).join('\n');
+
+            try {
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: `现有分类桶：${bucketNames}\n\n以下是待分类的观点：\n${ideaTexts}\n\n请将每个观点分配到最合适的桶中。每行输出：观点ID -> 桶名称。如果没有合适的桶，可建议新桶名。`,
+                        model_id: 'deepseek-v3',
+                        history: [],
+                        system_prompt: '你是一个内容分类助手。将观点归入指定的分类桶。严格按"观点ID -> 桶名称"格式输出，每行一个。'
+                    })
+                });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const lines = data.content.split('\n').filter(l => l.includes('->'));
+                    lines.forEach(line => {
+                        const parts = line.split('->').map(s => s.trim());
+                        if (parts.length === 2) {
+                            const ideaId = parts[0].replace(/[^a-z0-9]/gi, '');
+                            const bucketName = parts[1];
+                            let bucket = buckets.find(b => b.name === bucketName);
+                            if (!bucket) {
+                                const newId = 'bucket-' + (buckets.length + 1);
+                                bucket = { id: newId, name: bucketName, ideas: [] };
+                                buckets.push(bucket);
+                            }
+                            if (unassignedIds.includes(ideaId)) {
+                                unassignedIds = unassignedIds.filter(i => i !== ideaId);
+                                bucket.ideas.push(ideaId);
+                            }
+                        }
+                    });
+                    render();
+                    addActivity('AI 自动分桶完成');
+                } else {
+                    alert('AI 调用失败');
+                }
+            } catch (e) {
+                alert('网络错误: ' + e.message);
+            }
+            btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 自动分桶';
+            btn.disabled = false;
+        }
+
+        render();
+
+        // 确认分类：保存已分类观点到步骤结果
+        function confirmClassify() {
+            const classifiedIdeas = [];
+            buckets.forEach(b => {
+                b.ideas.forEach(id => {
+                    const idea = getIdea(id);
+                    if (idea) classifiedIdeas.push({ id: idea.id, text: idea.text, author: idea.source, votes: 0, bucket: b.name });
+                });
+            });
+            if (classifiedIdeas.length === 0 && unassignedIds.length > 0) {
+                if (!confirm(`还有 ${unassignedIds.length} 条观点未分类，确认应用当前结果？`)) return;
+            }
+            ThinkLetCommon.saveStepResult(classifiedIdeas);
+            alert(`分类已确认！\n已分类: ${classifiedIdeas.length} 条\n未分类: ${unassignedIds.length} 条`);
+        }
+
+        // ═══ 共用模块初始化 ═══
+        ThinkLetCommon.init();
+        if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) WorkflowNav.updateNextButton();
+    </script>
+    </div>
+</body>
+</html>

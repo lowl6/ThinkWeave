@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研讨时间轴 - ThinkWeave</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .step-enter { animation: fadeIn 0.4s ease-out forwards; }
+
+        @keyframes pulse-ring {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.5); }
+            70% { box-shadow: 0 0 0 8px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        .pulse-active { animation: pulse-ring 2s infinite; }
+
+        .timeline-line {
+            position: absolute;
+            left: 1.5rem;
+            top: 3rem;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #cbd5e1, #e2e8f0);
+        }
+        .timeline-line-done {
+            background: linear-gradient(to bottom, #3b82f6, #60a5fa);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+
+    <!-- 顶部导航 -->
+    <header class="bg-white border-b border-slate-200 shadow-sm flex-shrink-0">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="首页.html" class="text-slate-400 hover:text-blue-600 transition">
+                    <i class="fa-solid fa-arrow-left text-lg"></i>
+                </a>
+                <div>
+                    <h1 id="page-title" class="text-lg font-bold text-slate-800">研讨时间轴</h1>
+                    <p id="page-topic" class="text-xs text-slate-400 mt-0.5"></p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg">
+                    <i class="fa-regular fa-clock text-slate-400 text-sm"></i>
+                    <span id="elapsed-time" class="text-sm font-mono font-bold text-slate-600">00:00</span>
+                </div>
+                <div class="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100">
+                    <i class="fa-solid fa-list-check text-blue-500 text-sm"></i>
+                    <span id="progress-label" class="text-sm font-bold text-blue-700">0 / 0</span>
+                </div>
+                <button onclick="exportTimeline()" class="px-4 py-2 bg-gradient-to-r from-slate-800 to-slate-700 text-white text-sm font-semibold rounded-lg hover:shadow-md transition flex items-center gap-2">
+                    <i class="fa-solid fa-download"></i> 导出报告
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主体 -->
+    <main class="flex-1 max-w-5xl mx-auto w-full px-6 py-8">
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20 text-slate-400">
+            <i class="fa-regular fa-folder-open text-5xl mb-4 opacity-50"></i>
+            <p class="text-lg font-medium mb-2">未找到研讨流程</p>
+            <p class="text-sm mb-6">请先通过高级房间创建功能设计流程</p>
+            <a href="创建高级房间.html" class="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium">
+                <i class="fa-solid fa-plus mr-2"></i>创建高级房间
+            </a>
+        </div>
+
+        <div id="timeline-container" class="space-y-0"></div>
+
+        <!-- 底部操作区 -->
+        <div id="bottom-actions" class="hidden mt-10 pt-6 border-t border-slate-200 flex items-center justify-between">
+            <a href="首页.html" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition flex items-center gap-2">
+                <i class="fa-solid fa-arrow-left"></i> 返回首页
+            </a>
+            <div class="flex items-center gap-3">
+                <button onclick="resetAllSteps()" class="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-lg transition flex items-center gap-2 border border-slate-200">
+                    <i class="fa-solid fa-rotate-left"></i> 重置进度
+                </button>
+                <button onclick="exportTimeline()" class="px-6 py-2.5 bg-gradient-to-r from-slate-800 to-slate-700 text-white font-semibold rounded-lg hover:shadow-md transition flex items-center gap-2">
+                    <i class="fa-solid fa-file-export"></i> 导出完整报告
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let workflow = null;
+        let currentStepIndex = 0;
+        let startTime = null;
+        let timerInterval = null;
+        let isHost = false; // 是否为主持人
+
+        // ═══ 初始化 ═══════════════════════════════════
+        function init() {
+            workflow = ScopedStorage.get('tw_room_workflow');
+            if (!workflow || !workflow.steps || workflow.steps.length === 0) {
+                document.getElementById('empty-state').classList.remove('hidden');
+                return;
+            }
+
+            // 判断是否为主持人（创建者）
+            try {
+                const user = Auth.getUser();
+                isHost = user && workflow.createdBy && user.id === workflow.createdBy;
+                // 如果没有 createdBy 字段，默认当前用户可控制（兼容旧数据）
+                if (!workflow.createdBy) isHost = true;
+            } catch { isHost = true; }
+
+            document.getElementById('page-topic').textContent = workflow.topic || '';
+            document.getElementById('page-title').textContent = workflow.topic ? `研讨 · ${workflow.topic}` : '研讨时间轴';
+
+            // 加载保存的进度
+            const saved = ScopedStorage.get('tw_timeline_progress_' + (workflow.roomId || 'default'));
+            if (saved) {
+                currentStepIndex = saved.currentStep || 0;
+                startTime = saved.startTime ? new Date(saved.startTime) : new Date();
+                // 恢复各步骤笔记和产出
+                workflow.steps.forEach((step, i) => {
+                    if (saved.notes && saved.notes[i]) step._notes = saved.notes[i];
+                    if (saved.completed && saved.completed[i]) step._completed = true;
+                    if (saved.stepOutputs && saved.stepOutputs[i]) step._outputIdeas = saved.stepOutputs[i];
+                });
+                if (saved.aiSummary) workflow._aiSummary = saved.aiSummary;
+            } else {
+                startTime = new Date();
+            }
+
+            renderTimeline();
+            startTimer();
+            updateProgress();
+            document.getElementById('bottom-actions').classList.remove('hidden');
+        }
+
+        // ═══ 渲染时间轴 ═══════════════════════════════
+        function renderTimeline() {
+            const container = document.getElementById('timeline-container');
+            container.innerHTML = '';
+
+            const totalTime = workflow.steps.reduce((s, step) => s + (parseInt(step.time) || 10), 0);
+
+            workflow.steps.forEach((step, index) => {
+                const tl = step.thinklet || {};
+                const isActive = index === currentStepIndex;
+                const isDone = step._completed || index < currentStepIndex;
+                const isFuture = index > currentStepIndex && !step._completed;
+
+                const colorMap = {
+                    'green': { bg: 'bg-green-100', text: 'text-green-600', border: 'border-green-200', ring: 'ring-green-500' },
+                    'teal': { bg: 'bg-teal-100', text: 'text-teal-600', border: 'border-teal-200', ring: 'ring-teal-500' },
+                    'blue': { bg: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200', ring: 'ring-blue-500' },
+                    'sky': { bg: 'bg-blue-100', text: 'text-blue-600', border: 'border-blue-200', ring: 'ring-blue-500' },
+                    'indigo': { bg: 'bg-indigo-100', text: 'text-indigo-600', border: 'border-indigo-200', ring: 'ring-indigo-500' },
+                    'purple': { bg: 'bg-purple-100', text: 'text-purple-600', border: 'border-purple-200', ring: 'ring-purple-500' },
+                    'slate': { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', ring: 'ring-slate-500' },
+                };
+                const c = colorMap[tl.color] || colorMap['blue'];
+
+                const nodeClass = isDone
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : isActive
+                        ? `${c.bg} ${c.text} border-blue-500 pulse-active`
+                        : 'bg-white text-slate-400 border-slate-300';
+
+                const cardBorder = isActive ? 'border-blue-300 shadow-md shadow-blue-100/50' : isDone ? 'border-green-200' : 'border-slate-200';
+                const cardBg = isDone ? 'bg-green-50/30' : 'bg-white';
+
+                const hasPage = tl.page;
+                const lineClass = isDone ? 'timeline-line-done' : '';
+
+                const html = `
+                    <div class="relative pl-14 pb-8 step-enter" style="animation-delay: ${index * 80}ms" data-step="${index}">
+                        ${index < workflow.steps.length - 1 ? `<div class="timeline-line ${lineClass}"></div>` : ''}
+
+                        <!-- 节点 -->
+                        <div class="absolute left-0 top-0 w-12 h-12 flex items-center justify-center z-10">
+                            <div class="w-10 h-10 rounded-full border-2 ${nodeClass} font-bold text-sm flex items-center justify-center shadow-sm transition-all">
+                                ${isDone ? '<i class="fa-solid fa-check text-sm"></i>' : (index + 1)}
+                            </div>
+                        </div>
+
+                        <!-- 卡片 -->
+                        <div class="${cardBg} rounded-xl border ${cardBorder} p-5 transition-all hover:shadow-md">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap mb-1">
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold ${c.bg} ${c.text} ${c.border} border">
+                                            <i class="fa-solid ${tl.icon || 'fa-gear'}"></i> ${tl.label || step.type || '环节'}
+                                        </span>
+                                        <span class="text-xs text-slate-400">${tl.type || ''}</span>
+                                        ${isActive ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-600 text-white">当前环节</span>' : ''}
+                                        ${isDone ? '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 text-green-700 border border-green-200"><i class="fa-solid fa-check mr-0.5"></i>已完成</span>' : ''}
+                                    </div>
+                                    <h3 class="font-bold text-slate-800 text-base">${step.title || '研讨环节'}</h3>
+                                </div>
+                                <div class="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100 flex-shrink-0 ml-3">
+                                    <i class="fa-regular fa-clock text-slate-400 text-xs"></i>
+                                    <span class="text-sm font-bold text-slate-600">${step.time || 10} min</span>
+                                </div>
+                            </div>
+
+                            ${step.prompt ? `<p class="text-sm text-slate-500 mb-3 leading-relaxed bg-slate-50 rounded-lg p-3 border border-slate-100"><i class="fa-solid fa-quote-left text-slate-300 mr-1 text-xs"></i>${step.prompt}</p>` : ''}
+
+                            <!-- 笔记区 -->
+                            <div class="mb-3">
+                                <textarea placeholder="在此记录本环节的观点和成果..." 
+                                    class="step-notes w-full bg-slate-50 text-sm text-slate-600 rounded-lg p-3 border border-slate-100 focus:bg-white focus:border-blue-300 focus:ring-2 focus:ring-blue-100 outline-none resize-none transition" 
+                                    rows="2" data-index="${index}" onblur="saveNotes(${index}, this.value)">${step._notes || ''}</textarea>
+                            </div>
+
+                            <!-- 操作按钮 -->
+                            <div class="flex items-center gap-2 flex-wrap">
+                                ${hasPage && isActive ? `
+                                    <button onclick="openThinkLet(${index})" class="px-4 py-2 bg-gradient-to-r from-slate-800 to-slate-700 text-white text-sm font-semibold rounded-lg hover:shadow-md transition flex items-center gap-2">
+                                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 进入 ${tl.label || step.type}
+                                    </button>
+                                ` : ''}
+                                ${hasPage && isDone ? `
+                                    <button onclick="openThinkLet(${index})" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-medium rounded-lg transition flex items-center gap-2">
+                                        <i class="fa-solid fa-eye"></i> 查看 ${tl.label || step.type}
+                                    </button>
+                                ` : ''}
+                                ${isActive && !isDone ? (isHost ? `
+                                    <button onclick="markComplete(${index})" class="px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 text-sm font-medium rounded-lg transition flex items-center gap-2 border border-green-200">
+                                        <i class="fa-solid fa-check"></i> 完成并进入下一步
+                                    </button>
+                                ` : `
+                                    <span class="text-xs text-slate-400 flex items-center gap-1"><i class="fa-solid fa-lock text-slate-300"></i> 等待主持人推进</span>
+                                `) : ''}
+                                ${isDone && isHost ? `
+                                    <button onclick="undoComplete(${index})" class="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 text-slate-500 text-xs font-medium rounded-lg transition flex items-center gap-1.5">
+                                        <i class="fa-solid fa-rotate-left"></i> 撤销完成
+                                    </button>
+                                ` : ''}
+                                ${isFuture && !isDone ? `
+                                    <span class="text-xs text-slate-400 flex items-center gap-1"><i class="fa-solid fa-lock text-slate-300"></i> 需完成前序环节</span>
+                                ` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        // ═══ 操作函数 ═══════════════════════════════════
+        function openThinkLet(index) {
+            const step = workflow.steps[index];
+            const tl = step.thinklet || {};
+            if (!tl.page) {
+                showToast('该环节暂无对应页面');
+                return;
+            }
+            // 保存当前进度
+            saveProgress();
+            // 将当前环节信息存入 storage 供 ThinkLet 页面使用
+            ScopedStorage.set('tw_current_thinklet', {
+                stepIndex: index,
+                title: step.title,
+                prompt: step.prompt,
+                topic: workflow.topic,
+            });
+            window.location.href = tl.page + (workflow.roomId ? '?roomId=' + encodeURIComponent(workflow.roomId) : '');
+        }
+
+        function markComplete(index) {
+            if (!isHost) { showToast('仅主持人可推进流程'); return; }
+            if (index !== currentStepIndex) { showToast('请按顺序完成环节'); return; }
+            workflow.steps[index]._completed = true;
+            workflow.steps[index]._completedAt = new Date().toISOString();
+
+            // 保存该环节产生的数据（从共享 ideas 中收集）
+            const roomId = workflow.roomId || null;
+            const sharedNow = ScopedStorage.loadSharedIdeas(roomId);
+            workflow.steps[index]._outputIdeas = sharedNow;
+
+            // 自动推进当前步骤
+            if (index === currentStepIndex) {
+                while (currentStepIndex < workflow.steps.length - 1 && workflow.steps[currentStepIndex]._completed) {
+                    currentStepIndex++;
+                }
+            }
+
+            // 检查是否全部完成
+            const allDone = workflow.steps.every(s => s._completed);
+            if (allDone) {
+                saveProgress();
+                renderTimeline();
+                updateProgress();
+                showToast('🎉 所有环节已完成！正在生成AI总结报告...');
+                generateAISummary();
+                return;
+            }
+
+            saveProgress();
+            renderTimeline();
+            updateProgress();
+            showToast('✅ 已完成: ' + (workflow.steps[index].title || '环节 ' + (index + 1)));
+        }
+
+        function undoComplete(index) {
+            workflow.steps[index]._completed = false;
+            if (index < currentStepIndex) currentStepIndex = index;
+            saveProgress();
+            renderTimeline();
+            updateProgress();
+        }
+
+        function saveNotes(index, value) {
+            workflow.steps[index]._notes = value;
+            saveProgress();
+        }
+
+        function resetAllSteps() {
+            if (!confirm('确定要重置所有步骤的进度吗？笔记将被保留。')) return;
+            workflow.steps.forEach(s => { s._completed = false; });
+            currentStepIndex = 0;
+            saveProgress();
+            renderTimeline();
+            updateProgress();
+            showToast('已重置进度');
+        }
+
+        // ═══ 进度持久化 ═══════════════════════════════
+        function saveProgress() {
+            const key = 'tw_timeline_progress_' + (workflow.roomId || 'default');
+            ScopedStorage.set(key, {
+                currentStep: currentStepIndex,
+                startTime: startTime.toISOString(),
+                notes: workflow.steps.map(s => s._notes || ''),
+                completed: workflow.steps.map(s => !!s._completed),
+                stepOutputs: workflow.steps.map(s => s._outputIdeas || []),
+                aiSummary: workflow._aiSummary || '',
+            });
+        }
+
+        function updateProgress() {
+            const done = workflow.steps.filter(s => s._completed).length;
+            const total = workflow.steps.length;
+            document.getElementById('progress-label').textContent = `${done} / ${total}`;
+        }
+
+        // ═══ 计时器 ═══════════════════════════════════
+        function startTimer() {
+            const el = document.getElementById('elapsed-time');
+            timerInterval = setInterval(() => {
+                const diff = Math.floor((Date.now() - startTime.getTime()) / 1000);
+                const h = Math.floor(diff / 3600);
+                const m = Math.floor((diff % 3600) / 60);
+                const s = diff % 60;
+                el.textContent = h > 0
+                    ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+                    : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            }, 1000);
+        }
+
+        // ═══ AI 总结报告 ═══════════════════════════════
+        async function generateAISummary() {
+            // 收集所有环节的笔记和产出
+            let summaryInput = `研讨主题：${workflow.topic || '无主题'}\n\n`;
+            workflow.steps.forEach((step, i) => {
+                summaryInput += `## 环节 ${i+1}: ${step.title || step.type}\n`;
+                if (step._notes) summaryInput += `笔记: ${step._notes}\n`;
+                if (step._outputIdeas && step._outputIdeas.length > 0) {
+                    summaryInput += `产出观点:\n`;
+                    step._outputIdeas.forEach((idea, j) => {
+                        const text = typeof idea === 'string' ? idea : (idea.text || idea.content || '');
+                        summaryInput += `  ${j+1}. ${text}\n`;
+                    });
+                }
+                summaryInput += '\n';
+            });
+
+            // 收集采纳意见
+            const adopted = ScopedStorage.loadAdopted ? ScopedStorage.loadAdopted() : [];
+            if (adopted.length > 0) {
+                summaryInput += '## 采纳意见\n';
+                adopted.forEach((o, i) => {
+                    const text = (o.content || '').replace(/<[^>]+>/g, '');
+                    summaryInput += `${i+1}. [${o.aiName}]: ${text}\n`;
+                });
+            }
+
+            try {
+                const fetchFn = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.apiCall : fetch;
+                const resp = await fetchFn('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: `请根据以下研讨过程记录，生成一份简明的总结报告，包含：\n1. 研讨背景\n2. 各环节要点\n3. 核心结论\n4. 行动建议\n\n${summaryInput}`,
+                        model_id: 'deepseek-v3',
+                        history: [],
+                        system_prompt: '你是研讨总结专家。请用清晰结构化的中文输出总结报告，不要使用markdown符号。'
+                    }),
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    workflow._aiSummary = data.content || '';
+                    saveProgress();
+
+                    // 在页面底部显示总结
+                    const container = document.getElementById('timeline-container');
+                    container.insertAdjacentHTML('beforeend', `
+                        <div class="mt-8 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl border border-blue-200 p-6 step-enter">
+                            <div class="flex items-center gap-3 mb-4">
+                                <div class="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+                                <div>
+                                    <h3 class="font-bold text-slate-800 text-lg">AI 总结报告</h3>
+                                    <p class="text-xs text-slate-500">基于全流程记录自动生成</p>
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-xl p-5 border border-blue-100 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">${(workflow._aiSummary || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+                        </div>
+                    `);
+                    showToast('✅ AI 总结报告已生成');
+                }
+            } catch (e) {
+                showToast('AI 总结生成失败: ' + e.message);
+            }
+        }
+
+        // ═══ 导出 ═══════════════════════════════════
+        function exportTimeline() {
+            if (!workflow) return;
+            let md = `# 研讨报告: ${workflow.topic || '无主题'}\n\n`;
+            md += `**导出时间:** ${new Date().toLocaleString('zh-CN')}\n`;
+            md += `**房间代码:** ${workflow.roomCode || '-'}\n`;
+            const done = workflow.steps.filter(s => s._completed).length;
+            md += `**进度:** ${done} / ${workflow.steps.length} 步完成\n\n`;
+            md += '---\n\n';
+
+            workflow.steps.forEach((step, i) => {
+                const tl = step.thinklet || {};
+                const status = step._completed ? '✅ 已完成' : (i === currentStepIndex ? '🔵 进行中' : '⬜ 未开始');
+                md += `## ${i + 1}. ${step.title || '环节'}\n\n`;
+                md += `- **ThinkLet:** ${tl.label || step.type || '-'}\n`;
+                md += `- **时间:** ${step.time || 10} 分钟\n`;
+                md += `- **状态:** ${status}\n`;
+                if (step.prompt) md += `- **AI 指令:** ${step.prompt}\n`;
+                if (step._notes) md += `\n**笔记:**\n\n${step._notes}\n`;
+                md += '\n---\n\n';
+            });
+
+            // 附上采纳意见
+            const adopted = ScopedStorage.loadAdopted ? ScopedStorage.loadAdopted() : [];
+            if (adopted.length > 0) {
+                md += '## 采纳意见\n\n';
+                adopted.forEach((o, i) => {
+                    const text = (o.content || '').replace(/<[^>]+>/g, '');
+                    md += `${i + 1}. **${o.aiName}**: ${text}\n`;
+                });
+                md += '\n';
+            }
+
+            // 附上AI总结
+            if (workflow._aiSummary) {
+                md += '## AI 总结报告\n\n';
+                md += workflow._aiSummary + '\n\n';
+            }
+
+            const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `研讨报告_${(workflow.topic || '').slice(0, 20)}_${new Date().toISOString().slice(0,10)}.md`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('✅ 已导出研讨报告');
+        }
+
+        // ═══ Toast ═══════════════════════════════════
+        function showToast(msg) {
+            const t = document.createElement('div');
+            t.className = 'fixed top-20 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-xl shadow-2xl z-[100] flex items-center gap-3 text-sm font-medium';
+            t.style.animation = 'fadeIn 0.2s ease-out';
+            t.textContent = msg;
+            document.body.appendChild(t);
+            setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(() => t.remove(), 300); }, 2000);
+        }
+
+        // ═══ 启动 ═══════════════════════════════════
+        window.onload = () => {
+            if (!Auth.isLoggedIn()) Auth.showAuthModal();
+            init();
+        };
+    </script>
+</body>
+</html>

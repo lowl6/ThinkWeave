@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>环节 1: 自由头脑风暴 - AI Co-Lab</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="auth.js"></script>
+    <script src="storage.js"></script>
+    <script src="workflow-nav.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f8fafc; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+        /* 消息气泡动画 */
+        .message-enter { animation: slideUp 0.3s ease-out forwards; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 灵感卡片弹入动画 */
+        .idea-card-enter { animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        /* 状态呼吸灯动画 */
+        .pulse-dot {
+            box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+            animation: pulse-green 2s infinite;
+        }
+        @keyframes pulse-green {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(34, 197, 94, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+        }
+
+        /* 倒计时闪烁 */
+        .timer-urgent {
+            animation: timerBlink 1s infinite;
+        }
+        @keyframes timerBlink {
+            0%, 50% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+
+        /* 拖拽排序 */
+        .idea-dragging { opacity: 0.4; }
+        .idea-drag-over { border-top: 2px solid #3b82f6 !important; }
+
+        /* 抽屉收缩动画 */
+        .members-panel-collapsed {
+            width: 0 !important;
+            min-width: 0 !important;
+            overflow: hidden;
+            transition: width 0.3s ease-in-out;
+        }
+        .members-panel-expanded {
+            width: 18rem !important;
+            transition: width 0.3s ease-in-out;
+        }
+    </style>
+
+
+</head>
+<body class="bg-gray-100 h-screen flex flex-col md:flex-row text-slate-800 font-sans overflow-hidden">
+
+    <!-- 左侧导航栏（动态流程） -->
+    <aside id="workflow-sidebar" class="w-64 bg-slate-900 text-white flex flex-col flex-shrink-0 hidden md:flex z-20 shadow-xl" style="transition: width 0.3s ease, min-width 0.3s ease;">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-slate-700 bg-slate-900">
+            <div class="flex items-center">
+                <div class="w-8 h-8 bg-slate-800 rounded-lg flex items-center justify-center mr-3 shadow-lg shadow-slate-800/30">
+                    <i class="fa-solid fa-diagram-project text-white text-sm"></i>
+                </div>
+                <h1 class="font-bold text-lg tracking-wide">AI Co-Lab</h1>
+            </div>
+            <button onclick="WorkflowNav.toggleDrawer(document.getElementById('workflow-sidebar'), this)" class="text-slate-400 hover:text-white transition p-1 rounded hover:bg-slate-700" title="收起侧栏">
+                <i class="fa-solid fa-angles-left text-sm"></i>
+            </button>
+        </div>
+        <div id="workflow-nav-content" class="flex-1 overflow-y-auto custom-scroll">
+            <!-- 由 WorkflowNav.renderSidebar 动态填充 -->
+        </div>
+        <div class="p-4 border-t border-slate-800 bg-slate-900">
+            <div class="flex items-center gap-3 cursor-pointer hover:bg-slate-800 p-2 rounded-lg transition">
+                <div class="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-blue-500 flex items-center justify-center text-xs font-bold ring-2 ring-slate-700">ME</div>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm font-medium truncate text-white" id="sidebar-username">用户</div>
+                    <div class="text-xs text-slate-400">项目负责人</div>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 主内容区域 -->
+    <main class="flex-1 flex flex-col h-full relative bg-white min-w-0">
+    
+    <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 z-20 shadow-sm shrink-0">
+        <div class="flex items-center gap-4">
+            <div class="flex flex-col">
+                <h1 class="font-bold text-lg text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-bolt text-green-500"></i>
+                    自由头脑风暴
+                </h1>
+                <span id="step-subtitle" class="text-xs text-slate-500">环节 1/4 · 畅所欲言，暂不评判</span>
+            </div>
+            <div class="h-8 w-px bg-slate-200"></div>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
+                    <span>头脑风暴中</span>
+                </div>
+                <div class="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                    <i class="fa-solid fa-clock"></i>
+                    <span id="timer">09:59</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="progress-bars" class="hidden md:flex items-center gap-2"></div>
+
+        <div class="flex items-center gap-3">
+            <button id="next-step-btn" class="bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
+                下一步: 筛选
+                <i class="fa-solid fa-arrow-right"></i>
+            </button>
+        </div>
+    </header>
+
+    <div class="flex-1 flex overflow-hidden">
+        
+        <div class="flex-1 flex flex-col relative min-w-0">
+            
+            <div id="chat-container" class="flex-1 overflow-y-auto p-6 space-y-6 custom-scroll">
+                
+                <div class="flex justify-center my-4">
+                    <span class="bg-slate-200 text-slate-600 text-xs px-3 py-1 rounded-full">研讨已开始，请畅所欲言，输入想法开始头脑风暴</span>
+                </div>
+
+                <div class="flex items-start gap-3 max-w-3xl">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 mt-1"><i class="fa-solid fa-code"></i></div>
+                    <div class="space-y-1">
+                        <div class="text-xs font-bold text-slate-500">DeepSeek V3</div>
+                        <div class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-sm shadow-sm text-sm text-slate-700 leading-relaxed">
+                            欢迎开始头脑风暴！请输入您的想法或问题，AI 将协助您进行思维发散和观点提取。
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="flex-shrink-0 bg-white/90 backdrop-blur border-t border-slate-200 p-4 z-10">
+                <div class="max-w-4xl mx-auto space-y-3">
+                    
+                    <div class="flex items-center justify-between text-xs">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-slate-400 font-bold">响应模型:</span>
+                            <div id="model-checkboxes" class="flex items-center gap-2 flex-wrap"></div>
+                        </div>
+                        
+                        <div class="flex items-center gap-2">
+                            <span class="text-slate-400">输出数量:</span>
+                            <select id="output-count" class="bg-slate-100 border border-slate-200 rounded px-2 py-1 outline-none">
+                                <option value="1">1 条/AI</option>
+                                <option value="3" selected>3 条/AI</option>
+                                <option value="5">5 条/AI</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="relative shadow-lg rounded-2xl border border-slate-300 bg-white focus-within:ring-2 focus-within:ring-green-100 focus-within:border-green-400 transition-all">
+                        <textarea id="user-input" rows="1" placeholder="输入想法，或指令 AI 发散思维..." class="w-full py-3 pl-4 pr-12 bg-transparent border-none rounded-2xl resize-none focus:ring-0 text-slate-700 placeholder-slate-400" onkeydown="handleEnter(event)"></textarea>
+                        <button onclick="sendBrainstorm()" class="absolute right-2 bottom-2 bg-slate-800 hover:bg-slate-700 text-white rounded-lg w-8 h-8 flex items-center justify-center transition">
+                            <i class="fa-solid fa-paper-plane text-xs"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <aside class="w-80 bg-slate-100 border-l border-slate-200 flex flex-col shrink-0 hidden lg:flex">
+            <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
+                <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                    <i class="fa-regular fa-lightbulb text-blue-400"></i> 灵感池
+                </h3>
+                <span class="bg-slate-200 text-slate-600 text-xs font-bold px-2 py-0.5 rounded-full" id="idea-count">0</span>
+            </div>
+            
+            <div id="idea-board" class="flex-1 overflow-y-auto p-3 space-y-2 custom-scroll">
+                <!-- 灵感卡片由 JS 动态填充 -->
+            </div>
+
+            <div class="p-4 bg-slate-100 border-t border-slate-200 space-y-2">
+                <button onclick="aiOrganizeIdeas()" id="ai-organize-btn" class="w-full py-2 bg-gradient-to-r from-slate-800 to-slate-700 hover:from-slate-900 hover:to-slate-800 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i> AI 整理灵感池
+                </button>
+                <button onclick="addManualIdea()" class="w-full py-2 border border-dashed border-slate-300 rounded-lg text-slate-500 text-sm hover:bg-white hover:border-blue-400 hover:text-blue-600 transition">
+                    <i class="fa-solid fa-plus"></i> 手动添加便签
+                </button>
+            </div>
+        </aside>
+
+    </div>
+    </main>
+
+    <!-- 右侧成员面板 -->
+    <aside id="members-panel" class="w-72 bg-white border-l border-slate-200 flex flex-col hidden lg:flex shadow-[0_0_15px_rgba(0,0,0,0.03)] z-10 members-panel-expanded">
+        <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100">
+            <h2 class="font-bold text-slate-800">当前房间成员</h2>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                    <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
+                </div>
+                <div class="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
+                    <i class="fa-solid fa-clock"></i>
+                    <span id="member-timer">00:00</span>
+                </div>
+                <button onclick="toggleMembersPanel()" class="ml-2 text-slate-400 hover:text-slate-600 transition p-1 rounded hover:bg-slate-100" title="收起面板">
+                    <i id="members-panel-icon" class="fa-solid fa-angles-right text-sm"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-2">
+            <div class="mb-4">
+                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span id="ai-member-title">AI 队友 (0)</span>
+                    <button onclick="openAddAIModal()" class="text-blue-400 hover:text-blue-600 transition" title="添加 AI 队友"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div id="ai-member-list" class="space-y-1">
+                    <!-- 由 JS 动态渲染 -->
+                </div>
+            </div>
+
+            <div class="border-t border-slate-100 my-2 mx-3"></div>
+
+            <div class="mb-4">
+                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span id="human-member-title">人类团队 (1)</span>
+                    <button onclick="addHumanSeat()" class="text-blue-400 hover:text-blue-600 transition" title="添加人类队友"><i class="fa-solid fa-plus"></i></button>
+                </div>
+                <div id="human-member-list" class="space-y-1">
+                    <!-- 由 JS 动态渲染 -->
+                </div>
+            </div>
+        </div>
+
+        <div class="p-4 border-t border-slate-100">
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
+                <div class="flex items-center gap-2 mb-2">
+                    <i class="fa-solid fa-lightbulb text-green-600"></i>
+                    <span class="text-sm font-bold text-slate-800">灵感池统计</span>
+                </div>
+                <div class="text-2xl font-bold text-green-600" id="sidebar-idea-count">0</div>
+                <div class="text-xs text-slate-500 mt-1">条观点已收集</div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- 添加 AI 队友弹窗 -->
+    <div id="add-ai-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="font-bold text-lg text-slate-800">添加 AI 队友</h3>
+                <button onclick="closeAddAIModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="ai-model-options" class="space-y-2 max-h-64 overflow-y-auto">
+                <!-- 由 JS 渲染 -->
+            </div>
+            <button onclick="confirmAddAI()" class="mt-4 w-full bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg text-sm font-medium transition">确认添加</button>
+        </div>
+    </div>
+
+    <script>
+        let isMembersPanelExpanded = true;
+        let brainstormAIMembers = []; // 动态 AI 成员列表
+        let brainstormHumanMembers = []; // 动态人类成员列表
+
+        function toggleMembersPanel() {
+            const panel = document.getElementById('members-panel');
+            const panelIcon = document.getElementById('members-panel-icon');
+            
+            isMembersPanelExpanded = !isMembersPanelExpanded;
+            
+            if (isMembersPanelExpanded) {
+                panel.classList.remove('members-panel-collapsed');
+                panel.classList.add('members-panel-expanded');
+                panelIcon.className = 'fa-solid fa-angles-right text-sm';
+            } else {
+                panel.classList.remove('members-panel-expanded');
+                panel.classList.add('members-panel-collapsed');
+                panelIcon.className = 'fa-solid fa-angles-left text-sm';
+            }
+        }
+
+        /** 初始化成员面板：从房间配置或默认一个 AI */
+        function initMembersPanel() {
+            // 尝试从 ScopedStorage 加载已保存的 AI 成员
+            const _roomId = new URLSearchParams(location.search).get('roomId') || null;
+            const saved = ScopedStorage.loadAIMembers(_roomId);
+            if (saved && saved.length > 0) {
+                brainstormAIMembers = saved;
+            } else {
+                // 默认只添加一个 DeepSeek V3
+                const defaultModel = AI_MODELS.find(m => m.id === 'deepseek-v3');
+                brainstormAIMembers = defaultModel ? [{ id: defaultModel.id, name: defaultModel.name, iconClass: defaultModel.iconClass, iconName: defaultModel.iconName }] : [];
+            }
+            // 初始化主持人
+            try {
+                const user = Auth.getUser();
+                brainstormHumanMembers = [{
+                    name: user ? user.display_name : '我',
+                    role: '主持人',
+                    isHost: true
+                }];
+            } catch {
+                brainstormHumanMembers = [{ name: '我', role: '主持人', isHost: true }];
+            }
+            renderMembersPanel();
+        }
+
+        /** 渲染成员面板 */
+        function renderMembersPanel() {
+            // AI 成员
+            const aiList = document.getElementById('ai-member-list');
+            const aiTitle = document.getElementById('ai-member-title');
+            if (aiTitle) aiTitle.textContent = `AI 队友 (${brainstormAIMembers.length})`;
+            if (aiList) {
+                aiList.innerHTML = brainstormAIMembers.map(m => `
+                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer group">
+                        <div class="relative">
+                            <div class="w-10 h-10 rounded-full ${m.iconClass.split(' ')[0]} flex items-center justify-center ${m.iconClass.split(' ')[1] || ''}">
+                                <i class="fa-solid ${m.iconName}"></i>
+                            </div>
+                            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-bold text-slate-700 truncate">${m.name}</div>
+                            <div class="text-xs text-slate-400">AI 智能体</div>
+                        </div>
+                        <button onclick="removeAIMember('${m.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition p-1" title="移除"><i class="fa-solid fa-xmark text-xs"></i></button>
+                    </div>
+                `).join('');
+            }
+            // 人类成员
+            const humanList = document.getElementById('human-member-list');
+            const humanTitle = document.getElementById('human-member-title');
+            if (humanTitle) humanTitle.textContent = `人类团队 (${brainstormHumanMembers.length})`;
+            if (humanList) {
+                humanList.innerHTML = brainstormHumanMembers.map(m => `
+                    <div class="flex items-center gap-3 p-2 rounded-lg ${m.isHost ? 'bg-blue-50/50 border border-blue-100/50' : 'hover:bg-slate-50'} transition group">
+                        <div class="relative">
+                            <div class="w-10 h-10 rounded-full ${m.isHost ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-xs font-bold shadow-sm">
+                                ${m.isHost ? '主持人' : m.name[0]}
+                            </div>
+                            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 ${m.isHost ? 'bg-green-500 pulse-dot' : 'bg-slate-300'} border-2 border-white rounded-full"></div>
+                        </div>
+                        <div class="flex-1 min-w-0">
+                            <div class="text-sm font-bold text-slate-800 truncate">${m.name}</div>
+                            ${m.isHost ? '<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">主持人</span>' : '<div class="text-xs text-slate-400">团队成员</div>'}
+                        </div>
+                        ${!m.isHost ? `<button onclick="removeHumanMember('${m.name}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition p-1" title="移除"><i class="fa-solid fa-xmark text-xs"></i></button>` : ''}
+                    </div>
+                `).join('');
+            }
+            // 同步模型复选框状态
+            syncModelCheckboxes();
+        }
+
+        /** 同步 AI 成员面板和模型复选框 */
+        function syncModelCheckboxes() {
+            // 重新渲染复选框以只显示当前 AI 队友
+            renderModelCheckboxes();
+        }
+
+        /** 打开添加 AI 弹窗 */
+        function openAddAIModal() {
+            const modal = document.getElementById('add-ai-modal');
+            const container = document.getElementById('ai-model-options');
+            const existingIds = brainstormAIMembers.map(m => m.id);
+            const available = AI_MODELS.filter(m => !existingIds.includes(m.id));
+            if (available.length === 0) {
+                alert('所有 AI 模型已添加');
+                return;
+            }
+            container.innerHTML = available.map(m => `
+                <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-blue-300 cursor-pointer transition">
+                    <input type="checkbox" class="add-ai-cb accent-blue-600" value="${m.id}">
+                    <div class="w-8 h-8 rounded-full ${m.iconClass} flex items-center justify-center"><i class="fa-solid ${m.iconName} text-sm"></i></div>
+                    <span class="text-sm font-medium text-slate-700">${m.name}</span>
+                </label>
+            `).join('');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeAddAIModal() {
+            const modal = document.getElementById('add-ai-modal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmAddAI() {
+            const checked = document.querySelectorAll('.add-ai-cb:checked');
+            checked.forEach(cb => {
+                const model = AI_MODELS.find(m => m.id === cb.value);
+                if (model && !brainstormAIMembers.find(m => m.id === model.id)) {
+                    brainstormAIMembers.push({ id: model.id, name: model.name, iconClass: model.iconClass, iconName: model.iconName });
+                }
+            });
+            renderMembersPanel();
+            saveBrainstormMembers();
+            closeAddAIModal();
+        }
+
+        function removeAIMember(modelId) {
+            brainstormAIMembers = brainstormAIMembers.filter(m => m.id !== modelId);
+            renderMembersPanel();
+            saveBrainstormMembers();
+        }
+
+        function saveBrainstormMembers() {
+            const _roomId = new URLSearchParams(location.search).get('roomId') || null;
+            ScopedStorage.saveAIMembers(brainstormAIMembers, _roomId);
+        }
+
+        function addHumanSeat() {
+            const name = prompt('输入人类队友名称:');
+            if (name && name.trim()) {
+                brainstormHumanMembers.push({ name: name.trim(), role: '团队成员', isHost: false });
+                renderMembersPanel();
+            }
+        }
+
+        function removeHumanMember(name) {
+            brainstormHumanMembers = brainstormHumanMembers.filter(m => m.name !== name);
+            renderMembersPanel();
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendBrainstorm();
+            }
+        }
+
+        // AI 模型配置
+        const AI_MODELS = [
+            { id: 'deepseek-v3', name: 'DeepSeek V3', iconClass: 'bg-blue-100 text-blue-600', iconName: 'fa-code', checked: false },
+            { id: 'wenxin', name: '文心一言', iconClass: 'bg-indigo-100 text-indigo-600', iconName: 'fa-brain', checked: false },
+            { id: 'qianwen', name: '通义千问', iconClass: 'bg-blue-100 text-blue-600', iconName: 'fa-cloud', checked: false },
+            { id: 'gpt-4', name: 'GPT-4', iconClass: 'bg-green-100 text-green-600', iconName: 'fa-microchip', checked: false },
+            { id: 'claude', name: 'Claude', iconClass: 'bg-blue-100 text-blue-600', iconName: 'fa-feather', checked: false },
+            { id: 'gemini', name: 'Gemini', iconClass: 'bg-cyan-100 text-cyan-600', iconName: 'fa-star', checked: false },
+            { id: 'kimi', name: 'Kimi', iconClass: 'bg-violet-100 text-violet-600', iconName: 'fa-moon', checked: false },
+            { id: 'glm-4', name: 'GLM-4', iconClass: 'bg-rose-100 text-rose-600', iconName: 'fa-bolt', checked: false },
+        ];
+
+        let chatHistory = [];
+        let isSending = false;
+        const _bsRoomId = new URLSearchParams(location.search).get('roomId') || null;
+
+        /** 保存头脑风暴聊天记录和灵感池到 ScopedStorage */
+        function saveBrainstormData() {
+            // 保存聊天记录
+            ScopedStorage.set('tw_bs_chat', chatHistory, _bsRoomId);
+            // 保存灵感池
+            const ideas = [];
+            document.querySelectorAll('#idea-board > div[id^="idea-"]').forEach(card => {
+                const p = card.querySelector('.idea-text,.text-sm');
+                const srcEl = card.querySelector('.fa-robot, .fa-layer-group');
+                const source = srcEl ? srcEl.parentElement.textContent.trim() : 'AI';
+                if (p) ideas.push({ text: p.textContent.trim(), source });
+            });
+            ScopedStorage.set('tw_bs_ideas', ideas, _bsRoomId);
+            // 同步写入 sharedIdeas 供下一步使用
+            if (ideas.length > 0) {
+                const shared = ideas.map((idea, i) => ({ id: i+1, text: idea.text, author: idea.source, votes: 0 }));
+                ScopedStorage.saveSharedIdeas(shared, _bsRoomId);
+            }
+        }
+
+        /** 加载之前保存的聊天记录 */
+        function loadBrainstormData() {
+            // 加载聊天记录
+            const saved = ScopedStorage.get('tw_bs_chat', _bsRoomId);
+            if (saved && saved.length > 0) {
+                chatHistory = saved;
+                const chatContainer = document.getElementById('chat-container');
+                // 在欢迎消息后追加历史
+                saved.forEach(msg => {
+                    if (msg.role === 'user') {
+                        chatContainer.insertAdjacentHTML('beforeend', `
+                            <div class="flex justify-end message-enter mb-6">
+                                <div class="bg-slate-800 text-white rounded-2xl rounded-tr-sm py-3 px-5 max-w-[85%] shadow-md shadow-slate-800/10">
+                                    ${msg.content.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                                </div>
+                            </div>
+                        `);
+                    } else if (msg.role === 'assistant') {
+                        // 提取模型名
+                        const nameMatch = msg.content.match(/^\[(.+?)\]\s*/);
+                        const modelName = nameMatch ? nameMatch[1] : 'AI';
+                        const text = nameMatch ? msg.content.replace(nameMatch[0], '') : msg.content;
+                        const model = AI_MODELS.find(m => m.name === modelName) || AI_MODELS[0];
+                        const safeContent = stripBrainstormMarkdown(text.replace(/【灵感提取】\s*.+/g, '').trim());
+                        const safeName = (modelName || '').replace(/'/g, "\\'");
+                        const safeClass = (model ? model.iconClass : 'bg-blue-100 text-blue-600').replace(/'/g, "\\'");
+                        chatContainer.insertAdjacentHTML('beforeend', `
+                            <div class="flex items-start gap-3 max-w-3xl message-enter mb-6">
+                                <div class="w-8 h-8 rounded-full ${model ? model.iconClass : 'bg-blue-100 text-blue-600'} flex items-center justify-center shrink-0 mt-1 shadow-sm"><i class="fa-solid ${model ? model.iconName : 'fa-robot'}"></i></div>
+                                <div class="space-y-1 w-full">
+                                    <div class="text-xs font-bold text-slate-500">${modelName}</div>
+                                    <div class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-sm shadow-sm">
+                                        <div class="text-sm text-slate-700 leading-relaxed">${safeContent}</div>
+                                        <div class="mt-3 pt-2 border-t border-slate-100 flex gap-3 text-xs text-slate-400">
+                                            <button onclick="adoptChatToPool(this, '${safeName}', '${safeClass}')" class="hover:text-green-600 flex items-center gap-1 transition"><i class="fa-solid fa-plus"></i> 采纳到灵感池</button>
+                                            <button onclick="copyChatContent(this)" class="hover:text-blue-600 flex items-center gap-1 transition"><i class="fa-regular fa-copy"></i> 复制</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        `);
+                    }
+                });
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            // 加载灵感池
+            const savedIdeas = ScopedStorage.get('tw_bs_ideas', _bsRoomId);
+            if (savedIdeas && savedIdeas.length > 0) {
+                savedIdeas.forEach(idea => {
+                    addIdeaToBoard(idea.text, idea.source || 'AI', 'bg-blue-100 text-blue-600');
+                });
+            }
+        }
+
+        // 获取研讨主题（从 URL 参数或 workflow 数据）
+        function getBrainstormTopic() {
+            const urlTopic = new URLSearchParams(location.search).get('topic');
+            if (urlTopic) return urlTopic;
+            try {
+                const wf = ScopedStorage.get('tw_room_workflow');
+                if (wf && wf.topic) return wf.topic;
+            } catch {}
+            return '';
+        }
+
+        function getSelectedModels() {
+            // 优先使用右侧面板的 AI 成员列表
+            if (brainstormAIMembers && brainstormAIMembers.length > 0) {
+                return brainstormAIMembers.map(m => {
+                    const full = AI_MODELS.find(a => a.id === m.id);
+                    return full || m;
+                });
+            }
+            // 回退到复选框
+            const checkboxes = document.querySelectorAll('.model-checkbox');
+            const selected = [];
+            checkboxes.forEach((cb, i) => {
+                if (cb.checked && AI_MODELS[i]) selected.push(AI_MODELS[i]);
+            });
+            return selected;
+        }
+
+        async function sendBrainstorm() {
+            const input = document.getElementById('user-input');
+            const text = input.value.trim();
+            if (!text || isSending) return;
+
+            isSending = true;
+
+            // 1. 添加用户消息到左侧
+            const chatContainer = document.getElementById('chat-container');
+            const userHtml = `
+                <div class="flex justify-end message-enter mb-6">
+                    <div class="bg-slate-800 text-white rounded-2xl rounded-tr-sm py-3 px-5 max-w-[85%] shadow-md shadow-slate-800/10">
+                        ${text.replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+                    </div>
+                </div>
+            `;
+            chatContainer.insertAdjacentHTML('beforeend', userHtml);
+            input.value = '';
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            chatHistory.push({ role: 'user', content: text });
+
+            // 2. 获取选中的模型
+            const models = getSelectedModels();
+            if (models.length === 0) {
+                isSending = false;
+                return;
+            }
+
+            // 3. 为每个模型创建"思考中"占位符
+            const placeholders = {};
+            models.forEach(model => {
+                const pid = 'ai-' + model.id + '-' + Date.now();
+                placeholders[model.id] = pid;
+                const phHtml = `
+                    <div class="flex items-start gap-3 max-w-3xl message-enter mb-6" id="${pid}">
+                        <div class="w-8 h-8 rounded-full ${model.iconClass} flex items-center justify-center shrink-0 mt-1 shadow-sm"><i class="fa-solid ${model.iconName}"></i></div>
+                        <div class="space-y-1 w-full">
+                            <div class="text-xs font-bold text-slate-500">${model.name}</div>
+                            <div class="bg-white border border-slate-200 p-4 rounded-2xl rounded-tl-sm shadow-sm text-sm text-slate-400">
+                                <svg class="animate-spin h-4 w-4 inline mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                思考中...
+                            </div>
+                        </div>
+                    </div>
+                `;
+                chatContainer.insertAdjacentHTML('beforeend', phHtml);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // 4. 获取输出数量
+            const outputCount = parseInt(document.getElementById('output-count').value) || 1;
+
+            // 5. 并行调用各模型 API
+            const promises = models.map(async (model) => {
+                const pid = placeholders[model.id];
+                try {
+                    const topic = getBrainstormTopic();
+                    const topicLine = topic ? `\n当前研讨主题是：「${topic}」。请围绕这个主题进行思维发散。` : '';
+                    const countPrompt = outputCount > 1
+                        ? `你是头脑风暴环节的AI助手。${topicLine ? topicLine + '\n' : ''}请根据用户的输入进行思维发散，提出${outputCount}条不同角度的创新性观点和建议。不要使用任何Markdown格式符号（如**、##、-等），直接输出纯文本。每条建议用【灵感提取】标记一个最关键的创意短语（10字以内）。格式：\n1. 你的第一条建议...\n【灵感提取】创意短语1\n2. 你的第二条建议...\n【灵感提取】创意短语2\n以此类推，共${outputCount}条。`
+                        : `你是头脑风暴环节的AI助手。${topicLine ? topicLine + '\n' : ''}请根据用户的输入进行思维发散，提出创新性观点和建议。不要使用任何Markdown格式符号（如**、##、-等），直接输出纯文本。每次回复结尾用【灵感提取】标记一个最关键的创意短语（10字以内）。格式：\n【灵感提取】你的创意短语`;
+
+                    const reqBody = {
+                        message: text,
+                        model_id: model.id,
+                        history: chatHistory.slice(-20),
+                        system_prompt: countPrompt,
+                    };
+
+                    const fetchFn = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.apiCall : fetch;
+                    const resp = await fetchFn('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(reqBody),
+                    });
+
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        const content = data.content || '';
+                        chatHistory.push({ role: 'assistant', content: '[' + model.name + '] ' + content });
+
+                        // 提取所有灵感（支持多条）
+                        let mainContent = content;
+                        const allIdeas = [];
+                        const ideaRegex = /【灵感提取】\s*(.+)/g;
+                        let m;
+                        while ((m = ideaRegex.exec(content)) !== null) {
+                            allIdeas.push(m[1].trim());
+                        }
+                        mainContent = content.replace(/【灵感提取】\s*.+/g, '').trim();
+
+                        // 更新占位符
+                        const el = document.getElementById(pid);
+                        if (el) {
+                            const contentDiv = el.querySelector('.bg-white');
+                            const safeContent = stripBrainstormMarkdown(mainContent);
+                            const safeName = (model.name || '').replace(/'/g, "\\'");
+                            const safeClass = (model.iconClass || '').replace(/'/g, "\\'");
+                            contentDiv.innerHTML = `
+                                <div class="text-sm text-slate-700 leading-relaxed">${safeContent}</div>
+                                ${allIdeas.length > 0 ? `<div class="mt-2 text-[10px] bg-slate-100 px-2 py-0.5 rounded text-slate-400 inline-block">自动提取 ${allIdeas.length} 条观点</div>` : ''}
+                                <div class="mt-3 pt-2 border-t border-slate-100 flex gap-3 text-xs text-slate-400">
+                                    <button onclick="adoptChatToPool(this, '${safeName}', '${safeClass}')" class="hover:text-green-600 flex items-center gap-1 transition"><i class="fa-solid fa-plus"></i> 采纳到灵感池</button>
+                                    <button onclick="copyChatContent(this)" class="hover:text-blue-600 flex items-center gap-1 transition"><i class="fa-regular fa-copy"></i> 复制</button>
+                                </div>
+                            `;
+                        }
+
+                        // 自动提取观点到灵感池
+                        allIdeas.forEach(idea => {
+                            addIdeaToBoard(idea, model.name, model.iconClass);
+                        });
+                    } else {
+                        const el = document.getElementById(pid);
+                        if (el) {
+                            el.querySelector('.bg-white').innerHTML = '<span class="text-red-400 text-sm">⚠️ 调用失败，请重试</span>';
+                        }
+                    }
+                } catch (e) {
+                    const el = document.getElementById(pid);
+                    if (el) {
+                        el.querySelector('.bg-white').innerHTML = '<span class="text-red-400 text-sm">⚠️ 网络错误: ' + e.message + '</span>';
+                    }
+                }
+            });
+
+            await Promise.allSettled(promises);
+            isSending = false;
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            saveBrainstormData();
+        }
+
+        /** 去除 Markdown 格式，返回纯文本 HTML */
+        function stripBrainstormMarkdown(text) {
+            return text
+                .replace(/```[\s\S]*?```/g, m => m.replace(/```\w*\n?/g, '').trim())
+                .replace(/\*\*([\s\S]+?)\*\*/g, '$1')
+                .replace(/__([^_]+)__/g, '$1')
+                .replace(/\*([^\n*]+?)\*/g, '$1')
+                .replace(/_([^\n_]+?)_/g, '$1')
+                .replace(/#{1,6}\s*/g, '')
+                .replace(/^[-*+]\s+/gm, '· ')
+                .replace(/^\d+\.\s+/gm, '')
+                .replace(/`([^`]+)`/g, '$1')
+                .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                .replace(/^>\s?/gm, '')
+                .replace(/---+/g, '')
+                .replace(/\*{2,}/g, '')
+                .replace(/\n/g, '<br>');
+        }
+
+        /** 从聊天气泡采纳内容到灵感池 */
+        function adoptChatToPool(btn, source, colorClass) {
+            const card = btn.closest('.bg-white');
+            const textEl = card.querySelector('.text-sm.text-slate-700');
+            if (!textEl) return;
+            const text = textEl.textContent.trim().substring(0, 100);
+            if (!text) return;
+            addIdeaToBoard(text, source, colorClass || 'bg-blue-100 text-blue-600');
+            btn.innerHTML = '<i class="fa-solid fa-check"></i> 已采纳';
+            btn.disabled = true;
+            btn.classList.add('text-green-600');
+        }
+
+        /** 复制聊天内容 */
+        function copyChatContent(btn) {
+            const card = btn.closest('.bg-white');
+            const textEl = card.querySelector('.text-sm.text-slate-700');
+            if (!textEl) return;
+            navigator.clipboard.writeText(textEl.textContent.trim()).then(() => {
+                btn.innerHTML = '<i class="fa-solid fa-check"></i> 已复制';
+                setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i> 复制'; }, 2000);
+            });
+        }
+
+        function addIdeaToBoard(text, source, colorClass) {
+            const board = document.getElementById('idea-board');
+            
+            // 提取边框颜色
+            const borderColor = source.includes('DeepSeek') ? 'border-l-blue-400' : 'border-l-indigo-400';
+
+            const cardId = 'idea-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+
+            const cardHtml = `
+                <div id="${cardId}" class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm ${borderColor} border-l-4 group cursor-move hover:shadow-md transition idea-card-enter">
+                    <p class="text-sm text-slate-800 font-medium leading-snug idea-text" contenteditable="false">${text}</p>
+                    <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
+                        <span class="flex items-center gap-1"><i class="fa-solid fa-robot"></i> ${source}</span>
+                        <div class="flex items-center gap-2">
+                            <button class="opacity-0 group-hover:opacity-100 hover:text-blue-600 transition" onclick="editIdeaCard('${cardId}')" title="编辑"><i class="fa-solid fa-pen"></i></button>
+                            <button class="opacity-0 group-hover:opacity-100 hover:text-red-500 transition" onclick="deleteIdeaCard('${cardId}')" title="删除"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // 稍微延迟一点出现，营造“提取中”的感觉
+            setTimeout(() => {
+                board.insertAdjacentHTML('afterbegin', cardHtml);
+                updateIdeaCount();
+            }, 500);
+        }
+
+        function editIdeaCard(cardId) {
+            const card = document.getElementById(cardId);
+            if (!card) return;
+            const p = card.querySelector('.idea-text');
+            if (p.contentEditable === 'true') {
+                p.contentEditable = 'false';
+                p.classList.remove('ring-2', 'ring-blue-400', 'outline-none', 'bg-blue-50', 'rounded', 'px-1');
+            } else {
+                p.contentEditable = 'true';
+                p.classList.add('ring-2', 'ring-blue-400', 'outline-none', 'bg-blue-50', 'rounded', 'px-1');
+                p.focus();
+                p.onblur = () => {
+                    p.contentEditable = 'false';
+                    p.classList.remove('ring-2', 'ring-blue-400', 'outline-none', 'bg-blue-50', 'rounded', 'px-1');
+                };
+            }
+        }
+
+        function deleteIdeaCard(cardId) {
+            const card = document.getElementById(cardId);
+            if (card) {
+                card.style.opacity = '0';
+                card.style.transform = 'scale(0.8)';
+                card.style.transition = 'all 0.2s';
+                setTimeout(() => { card.remove(); updateIdeaCount(); }, 200);
+            }
+        }
+
+        function updateIdeaCount() {
+            const count = document.querySelectorAll('#idea-board .bg-white').length;
+            document.getElementById('idea-count').innerText = count;
+            const sc = document.getElementById('sidebar-idea-count');
+            if (sc) sc.innerText = count;
+        }
+
+        // 动态渲染模型复选框（仅显示 AI 队友中的模型）
+        function renderModelCheckboxes() {
+            const container = document.getElementById('model-checkboxes');
+            if (!container) return;
+            container.innerHTML = '';
+            const memberIds = brainstormAIMembers.map(m => m.id);
+            AI_MODELS.forEach((m, i) => {
+                if (!memberIds.includes(m.id)) return; // 只显示已添加的 AI 队友
+                const label = document.createElement('label');
+                label.className = 'flex items-center gap-1 bg-blue-50 text-blue-700 border-blue-100 px-2 py-1 rounded border cursor-pointer';
+                label.innerHTML = `<input type="checkbox" checked class="model-checkbox accent-blue-600" data-model-id="${m.id}"> ${m.name}`;
+                container.appendChild(label);
+            });
+        }
+        // renderModelCheckboxes 在 initMembersPanel -> syncModelCheckboxes 中调用
+
+        // 收集灵感池中所有观点文本
+        function collectIdeasFromBoard() {
+            const cards = document.querySelectorAll('#idea-board .bg-white p');
+            return Array.from(cards).map(p => p.textContent.trim()).filter(Boolean);
+        }
+
+        // AI 整理灵感池：去重、分类、排序
+        async function aiOrganizeIdeas() {
+            const ideas = collectIdeasFromBoard();
+            if (ideas.length < 2) { alert('灵感池至少需要 2 条观点才能整理'); return; }
+
+            const btn = document.getElementById('ai-organize-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<svg class="animate-spin h-4 w-4 inline mr-2" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> AI 整理中...';
+
+            try {
+                const prompt = `以下是头脑风暴产生的创意观点列表：\n${ideas.map((t,i) => (i+1)+'. '+t).join('\n')}\n\n请帮我：\n1. 去除重复或高度相似的观点\n2. 将观点按主题分类\n3. 每个类别给出一个简短的标题\n\n请严格按以下JSON格式输出（不要输出其他内容）：\n[{"category":"类别名","ideas":["观点1","观点2"]}]`;
+
+                const fetchFn = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.apiCall : fetch;
+                const resp = await fetchFn('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: prompt, model_id: 'deepseek-v3', history: [], system_prompt: '你是一个数据整理专家。请严格按要求的JSON格式输出。' }),
+                });
+
+                if (resp.ok) {
+                    const data = await resp.json();
+                    const content = data.content || '';
+                    // 尝试解析 JSON
+                    const jsonMatch = content.match(/\[[\s\S]*\]/);
+                    if (jsonMatch) {
+                        const categories = JSON.parse(jsonMatch[0]);
+                        renderOrganizedBoard(categories);
+                    } else {
+                        alert('AI 返回格式异常，请重试');
+                    }
+                }
+            } catch (e) {
+                alert('整理失败: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-wand-magic-sparkles"></i> AI 整理灵感池';
+            }
+        }
+
+        // 渲染分类后的灵感池
+        function renderOrganizedBoard(categories) {
+            const board = document.getElementById('idea-board');
+            board.innerHTML = '';
+            let total = 0;
+            const colors = ['border-l-blue-400', 'border-l-indigo-400', 'border-l-green-400', 'border-l-rose-400', 'border-l-cyan-400'];
+            categories.forEach((cat, ci) => {
+                const color = colors[ci % colors.length];
+                board.innerHTML += `<div class="text-xs font-bold text-slate-500 uppercase tracking-wider mt-${ci > 0 ? '4' : '1'} mb-2 px-1">${cat.category}</div>`;
+                (cat.ideas || []).forEach(idea => {
+                    total++;
+                    board.innerHTML += `
+                        <div class="bg-white p-3 rounded-lg border border-slate-200 shadow-sm ${color} border-l-4 group cursor-move hover:shadow-md transition idea-card-enter">
+                            <p class="text-sm text-slate-800 font-medium leading-snug">${idea}</p>
+                            <div class="mt-2 flex items-center justify-between text-xs text-slate-400">
+                                <span class="flex items-center gap-1"><i class="fa-solid fa-layer-group"></i> ${cat.category}</span>
+                                <button class="opacity-0 group-hover:opacity-100 hover:text-red-500 transition" onclick="this.closest('.bg-white').remove(); updateIdeaCount()"><i class="fa-solid fa-xmark"></i></button>
+                            </div>
+                        </div>`;
+                });
+            });
+            document.getElementById('idea-count').innerText = total;
+            const sc = document.getElementById('sidebar-idea-count');
+            if (sc) sc.innerText = total;
+        }
+
+        // 手动添加便签
+        function addManualIdea() {
+            const text = prompt('输入你的想法:');
+            if (text && text.trim()) {
+                addIdeaToBoard(text.trim(), '手动添加', 'bg-slate-100 text-slate-600');
+            }
+        }
+
+        // ═══ 流程导航初始化 ═══
+        (function initWorkflowNav() {
+            if (WorkflowNav.init()) {
+                WorkflowNav.renderSidebar(document.getElementById('workflow-nav-content'));
+                WorkflowNav.updateNextButton(document.getElementById('next-step-btn'));
+                WorkflowNav.updateProgressBar(document.getElementById('progress-bars'));
+                WorkflowNav.updateStepInfo(document.getElementById('step-subtitle'));
+                // 更新用户名
+                try {
+                    const user = Auth.getUser();
+                    if (user) document.getElementById('sidebar-username').textContent = user.display_name;
+                } catch {}
+            }
+            // 初始化动态成员面板
+            initMembersPanel();
+            // 加载之前保存的聊天和灵感池
+            loadBrainstormData();
+        })();
+    </script>
+</body>
+</html>
