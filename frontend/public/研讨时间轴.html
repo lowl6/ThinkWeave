@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
     <style>
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f8fafc; }
@@ -101,10 +101,33 @@
         let startTime = null;
         let timerInterval = null;
         let isHost = false; // 是否为主持人
+        const _timelineRoomId = new URLSearchParams(location.search).get('roomId') || null;
+
+        /** 与 workflow-nav 共用：房间内共享进度，并兼容旧版 per-user key */
+        function timelineLoad() {
+            const rid = workflow && workflow.roomId;
+            if (!rid) {
+                try { return ScopedStorage.get('tw_timeline_progress_default'); } catch { return null; }
+            }
+            let s = ScopedStorage.getRoomShared('timeline', rid);
+            if (s) return s;
+            const legacy = ScopedStorage.get('tw_timeline_progress_' + rid);
+            if (legacy) {
+                ScopedStorage.setRoomShared('timeline', legacy, rid);
+                return legacy;
+            }
+            return null;
+        }
+
+        function timelinePersist(payload) {
+            const rid = workflow && workflow.roomId;
+            if (rid) ScopedStorage.setRoomShared('timeline', payload, rid);
+            else ScopedStorage.set('tw_timeline_progress_default', payload);
+        }
 
         // ═══ 初始化 ═══════════════════════════════════
         function init() {
-            workflow = ScopedStorage.get('tw_room_workflow');
+            workflow = ScopedStorage.loadRoomWorkflow(_timelineRoomId) || ScopedStorage.get('tw_room_workflow', _timelineRoomId);
             if (!workflow || !workflow.steps || workflow.steps.length === 0) {
                 document.getElementById('empty-state').classList.remove('hidden');
                 return;
@@ -113,16 +136,15 @@
             // 判断是否为主持人（创建者）
             try {
                 const user = Auth.getUser();
-                isHost = user && workflow.createdBy && user.id === workflow.createdBy;
-                // 如果没有 createdBy 字段，默认当前用户可控制（兼容旧数据）
+                isHost = !!(user && workflow.createdBy != null && String(user.id) === String(workflow.createdBy));
                 if (!workflow.createdBy) isHost = true;
             } catch { isHost = true; }
 
             document.getElementById('page-topic').textContent = workflow.topic || '';
             document.getElementById('page-title').textContent = workflow.topic ? `研讨 · ${workflow.topic}` : '研讨时间轴';
 
-            // 加载保存的进度
-            const saved = ScopedStorage.get('tw_timeline_progress_' + (workflow.roomId || 'default'));
+            // 加载保存的进度（房间共享）
+            const saved = timelineLoad();
             if (saved) {
                 currentStepIndex = saved.currentStep || 0;
                 startTime = saved.startTime ? new Date(saved.startTime) : new Date();
@@ -334,10 +356,11 @@
 
         // ═══ 进度持久化 ═══════════════════════════════
         function saveProgress() {
-            const key = 'tw_timeline_progress_' + (workflow.roomId || 'default');
-            ScopedStorage.set(key, {
+            const prev = timelineLoad() || {};
+            timelinePersist({
+                ...prev,
                 currentStep: currentStepIndex,
-                startTime: startTime.toISOString(),
+                startTime: (startTime && startTime.toISOString) ? startTime.toISOString() : new Date().toISOString(),
                 notes: workflow.steps.map(s => s._notes || ''),
                 completed: workflow.steps.map(s => !!s._completed),
                 stepOutputs: workflow.steps.map(s => s._outputIdeas || []),

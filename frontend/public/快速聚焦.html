@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
-    <script src="workflow-nav.js"></script>
-    <script src="thinklet-common.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
+    <script src="workflow-nav.js?v=20260515-1"></script>
+    <script src="room-members.js?v=20260515-1"></script>
+    <script src="thinklet-common.js?v=20260515-1"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -92,7 +93,6 @@
         <!-- 观点投票列表 -->
         <div class="flex-1 overflow-y-auto p-6 custom-scroll">
             <div id="vote-list" class="max-w-3xl mx-auto space-y-3">
-                <!-- 观点卡片 -->
             </div>
         </div>
 
@@ -102,7 +102,6 @@
                 <h3 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-chart-pie text-blue-500"></i> 投票概览</h3>
             </div>
             <div class="flex-1 overflow-y-auto p-4 space-y-4 custom-scroll">
-                <!-- 进度 -->
                 <div class="bg-slate-50 rounded-xl p-4">
                     <div class="flex items-center justify-between mb-2">
                         <span class="text-sm font-medium text-slate-700">投票进度</span>
@@ -113,13 +112,11 @@
                     </div>
                 </div>
 
-                <!-- AI 合并建议 -->
                 <div id="ai-merge-box" class="hidden">
                     <h4 class="text-xs font-bold text-blue-600 uppercase mb-2"><i class="fa-solid fa-link"></i> AI 合并建议</h4>
                     <div id="ai-merge-list" class="space-y-2"></div>
                 </div>
 
-                <!-- 实时活动 -->
                 <div>
                     <h4 class="text-xs font-bold text-slate-400 uppercase mb-2">实时活动</h4>
                     <div id="activity-feed" class="space-y-2">
@@ -131,7 +128,6 @@
                 </div>
             </div>
 
-            <!-- 成员状态 -->
             <div class="p-4 border-t border-slate-100">
                 <h4 class="text-xs font-bold text-slate-400 mb-2">成员投票状态</h4>
                 <div id="member-status" class="space-y-2">
@@ -142,27 +138,28 @@
     </main>
 
     <script>
-        // 从共享数据加载（ThinkLetCommon 标准加载）
-        const _roomId = ThinkLetCommon.getRoomId();
+        ThinkLetCommon.init();
         const seedData = ThinkLetCommon.loadSeedData();
         const ideas = seedData.length > 0 ? seedData.map((item, i) => ({
-            id: item.id || (i + 1),
+            id: String(item.id ?? (i + 1)),
             text: item.text,
             source: item.author || 'AI',
             icon: 'fa-lightbulb',
             iconBg: 'bg-blue-100',
             iconColor: 'text-blue-600',
         })) : [
-            { id: 1, text: '暂无数据 — 请在首页采纳意见后跳转到此页面', source: '系统', icon: 'fa-info-circle', iconBg: 'bg-slate-100', iconColor: 'text-slate-400' },
+            { id: '1', text: '暂无数据 — 请在上一环节完成后进入本页，或先在首页采纳意见', source: '系统', icon: 'fa-info-circle', iconBg: 'bg-slate-100', iconColor: 'text-slate-400' },
         ];
 
-        const votes = {}; // { ideaId: 'keep' | 'merge' | 'discard' | null }
+        const votes = {}; // key: String(ideaId)
+
+        function _voteKey(id) { return String(id); }
 
         function renderCards() {
             const list = document.getElementById('vote-list');
             list.innerHTML = '';
             ideas.forEach(idea => {
-                const vote = votes[idea.id] || null;
+                const vote = votes[_voteKey(idea.id)] || null;
                 const card = document.createElement('div');
                 card.className = `vote-card bg-white p-5 rounded-xl border-2 border-slate-200 shadow-sm flex items-start gap-4 ${vote ? 'voted-' + vote : ''}`;
                 card.id = 'card-' + idea.id;
@@ -170,6 +167,8 @@
                 const iconEl = idea.icon
                     ? `<div class="w-8 h-8 rounded-full ${idea.iconBg} ${idea.iconColor} flex items-center justify-center text-sm"><i class="fa-solid ${idea.icon}"></i></div>`
                     : `<div class="w-8 h-8 rounded-full ${idea.iconBg} ${idea.iconColor} flex items-center justify-center text-sm font-bold">${idea.initial}</div>`;
+
+                const idJs = JSON.stringify(idea.id);
 
                 card.innerHTML = `
                     <div class="flex-shrink-0">${iconEl}</div>
@@ -181,13 +180,13 @@
                         <p class="text-sm text-slate-700 font-medium">${idea.text}</p>
                     </div>
                     <div class="flex gap-2 flex-shrink-0">
-                        <button class="vote-btn w-9 h-9 rounded-lg border flex items-center justify-center text-lg ${vote === 'keep' ? 'active-keep border-green-500' : 'border-slate-200 text-green-500 hover:bg-green-50'}" onclick="castVote(${idea.id}, 'keep')" title="保留">
+                        <button class="vote-btn w-9 h-9 rounded-lg border flex items-center justify-center text-lg ${vote === 'keep' ? 'active-keep border-green-500' : 'border-slate-200 text-green-500 hover:bg-green-50'}" onclick="castVote(${idJs}, 'keep')" title="保留">
                             <i class="fa-solid fa-check"></i>
                         </button>
-                        <button class="vote-btn w-9 h-9 rounded-lg border flex items-center justify-center text-lg ${vote === 'merge' ? 'active-merge border-blue-500' : 'border-slate-200 text-blue-500 hover:bg-blue-50'}" onclick="castVote(${idea.id}, 'merge')" title="合并">
+                        <button class="vote-btn w-9 h-9 rounded-lg border flex items-center justify-center text-lg ${vote === 'merge' ? 'active-merge border-blue-500' : 'border-slate-200 text-blue-500 hover:bg-blue-50'}" onclick="castVote(${idJs}, 'merge')" title="合并">
                             <i class="fa-solid fa-code-merge"></i>
                         </button>
-                        <button class="vote-btn w-9 h-9 rounded-lg border flex items-center justify-center text-lg ${vote === 'discard' ? 'active-discard border-red-500' : 'border-slate-200 text-red-500 hover:bg-red-50'}" onclick="castVote(${idea.id}, 'discard')" title="淘汰">
+                        <button class="vote-btn w-9 h-9 rounded-lg border flex items-center justify-center text-lg ${vote === 'discard' ? 'active-discard border-red-500' : 'border-slate-200 text-red-500 hover:bg-red-50'}" onclick="castVote(${idJs}, 'discard')" title="淘汰">
                             <i class="fa-solid fa-xmark"></i>
                         </button>
                     </div>
@@ -197,17 +196,18 @@
         }
 
         function castVote(id, type) {
-            if (votes[id] === type) { votes[id] = null; } else { votes[id] = type; }
+            const key = _voteKey(id);
+            if (votes[key] === type) { votes[key] = null; } else { votes[key] = type; }
             renderCards();
             updateStats();
             const userName = (Auth.getUser() || {}).display_name || '用户';
-            addActivity(`${userName} ${votes[id] ? (votes[id] === 'keep' ? '保留' : votes[id] === 'merge' ? '标记合并' : '淘汰') : '取消投票'} 了观点 #${id}`);
+            addActivity(`${userName} ${votes[key] ? (votes[key] === 'keep' ? '保留' : votes[key] === 'merge' ? '标记合并' : '淘汰') : '取消投票'} 了观点 #${key}`);
         }
 
         function updateStats() {
             let keep = 0, merge = 0, discard = 0, pending = 0;
             ideas.forEach(i => {
-                const v = votes[i.id];
+                const v = votes[_voteKey(i.id)];
                 if (v === 'keep') keep++;
                 else if (v === 'merge') merge++;
                 else if (v === 'discard') discard++;
@@ -220,7 +220,7 @@
 
             const total = ideas.length;
             const voted = total - pending;
-            const pct = Math.round(voted / total * 100);
+            const pct = total > 0 ? Math.round(voted / total * 100) : 0;
             document.getElementById('progress-pct').textContent = pct + '%';
             document.getElementById('progress-bar').style.width = pct + '%';
         }
@@ -239,16 +239,20 @@
             btn.disabled = true;
 
             const ideaTexts = ideas.map(i => `#${i.id}: ${i.text}`).join('\n');
+            const msg = '以下是头脑风暴得到的观点列表：\n' + ideaTexts + '\n\n请识别其中语义相似或可以合并的观点对。每行输出格式：#A + #B = 合并后的新表述（不超过30字）。只输出可合并的对，不要解释。';
+            const sys = '你是一个观点去重与合并助手。识别语义相似的观点对并给出合并建议。严格按指定格式输出。';
+
             try {
-                const resp = await fetch('/api/chat', {
+                const fetchFn = (typeof Auth !== 'undefined' && Auth.isLoggedIn()) ? Auth.apiCall : fetch;
+                const resp = await fetchFn('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        message: `以下是头脑风暴得到的观点列表：\n${ideaTexts}\n\n请识别其中语义相似或可以合并的观点对。每行输出格式：#A + #B = 合并后的新表述（不超过30字）。只输出可合并的对，不要解释。`,
+                        message: msg,
                         model_id: 'deepseek-v3',
                         history: [],
-                        system_prompt: '你是一个观点去重与合并助手。识别语义相似的观点对并给出合并建议。严格按指定格式输出。'
-                    })
+                        system_prompt: sys,
+                    }),
                 });
                 if (resp.ok) {
                     const data = await resp.json();
@@ -261,10 +265,10 @@
                         list.innerHTML = '<div class="text-xs text-slate-400">未发现可合并的观点对</div>';
                     } else {
                         lines.forEach(line => {
-                            const el = document.createElement('div');
-                            el.className = 'merge-suggest bg-blue-50 border border-slate-200 rounded-lg p-3 text-xs text-blue-800 fade-in';
-                            el.innerHTML = `<i class="fa-solid fa-link mr-1"></i> ${line}`;
-                            list.appendChild(el);
+                            const row = document.createElement('div');
+                            row.className = 'merge-suggest bg-blue-50 border border-slate-200 rounded-lg p-3 text-xs text-blue-800 fade-in';
+                            row.innerHTML = `<i class="fa-solid fa-link mr-1"></i> ${line}`;
+                            list.appendChild(row);
                         });
                     }
                 } else {
@@ -278,22 +282,28 @@
         }
 
         function applyResults() {
-            const kept = ideas.filter(i => votes[i.id] === 'keep');
-            const pending = ideas.filter(i => !votes[i.id]);
+            if (ThinkLetCommon.getRoomId() && typeof WorkflowNav !== 'undefined' && WorkflowNav.isHost && !WorkflowNav.isHost()) {
+                alert('仅房主可应用结果并推进流程');
+                return;
+            }
+            const kept = ideas.filter(i => votes[_voteKey(i.id)] === 'keep');
+            const pending = ideas.filter(i => !votes[_voteKey(i.id)]);
             if (pending.length > 0) {
                 if (!confirm(`还有 ${pending.length} 条观点未投票，确认应用当前结果？`)) return;
             }
-            // 保存保留的观点到步骤结果
             const resultIdeas = kept.map(i => ({ id: i.id, text: i.text, author: i.source, votes: 0 }));
             ThinkLetCommon.saveStepResult(resultIdeas);
-            alert(`结果已应用！\n保留: ${kept.length} 条\n合并: ${ideas.filter(i => votes[i.id] === 'merge').length} 条\n淘汰: ${ideas.filter(i => votes[i.id] === 'discard').length} 条`);
+            if (typeof WorkflowNav !== 'undefined' && WorkflowNav.completeCurrentStepAndGoNext) {
+                WorkflowNav.completeCurrentStepAndGoNext();
+            }
         }
 
         renderCards();
         updateStats();
 
-        // ═══ 共用模块初始化 ═══
-        ThinkLetCommon.init();
+        ThinkLetCommon.setupRoomSync({
+            onTimelineChange: () => { if (ThinkLetCommon.getRoomId()) location.reload(); },
+        });
         if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) WorkflowNav.updateNextButton();
     </script>
     </div>

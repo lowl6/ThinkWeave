@@ -18,11 +18,31 @@ from app.models.room_member import RoomMember, MemberRole
 from app.models.agent_config import AgentConfig
 from app.models.workflow import WorkflowStep
 from app.models.message import Message, MessageType
+from app.models.room_state import RoomState
 from app.schemas.room import RoomCreate, RoomJoin, RoomOut, RoomUpdate
 from app.schemas.message import MessageOut
+from app.schemas.room_state import RoomStateOut, RoomStateWrite
 
 router = APIRouter(prefix="/rooms", tags=["房间"])
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def _ensure_room_member(db: AsyncSession, room_id: PyUUID, user_id: PyUUID) -> Room:
+    """房间成员鉴权：返回房间，否则 403/404。"""
+    room = await db.get(Room, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail="房间不存在")
+    if room.created_by == user_id:
+        return room
+    result = await db.execute(
+        select(RoomMember).where(
+            RoomMember.room_id == room_id,
+            RoomMember.user_id == user_id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(status_code=403, detail="非房间成员")
+    return room
 
 
 def generate_room_code() -> str:
@@ -247,6 +267,110 @@ async def post_room_message(
     db.add(msg)
     await db.flush()
     return MessageOut.model_validate(msg)
+
+
+# ── 房间内共享 KV 状态（前端 ScopedStorage 后端版）────────────────
+import json as _json
+
+
+@router.get("/{room_id}/state", response_model=list[RoomStateOut])
+async def list_room_states(
+    room_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """列出当前房间的所有共享键值（含 version，便于前端轮询）。"""
+    room_uuid = PyUUID(room_id)
+    await _ensure_room_member(db, room_uuid, user.id)
+    result = await db.execute(
+        select(RoomState).where(RoomState.room_id == room_uuid)
+    )
+    rows = result.scalars().all()
+    out: list[RoomStateOut] = []
+    for r in rows:
+        try:
+            val = _json.loads(r.value) if r.value is not None else None
+        except Exception:
+            val = None
+        out.append(RoomStateOut(
+            key=r.key, value=val, version=r.version, updated_at=r.updated_at,
+        ))
+    return out
+
+
+@router.get("/{room_id}/state/{key}", response_model=RoomStateOut)
+async def get_room_state(
+    room_id: str,
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """读取房间内某个共享键。不存在返回 404。"""
+    room_uuid = PyUUID(room_id)
+    await _ensure_room_member(db, room_uuid, user.id)
+    result = await db.execute(
+        select(RoomState).where(
+            RoomState.room_id == room_uuid,
+            RoomState.key == key,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="键不存在")
+    try:
+        val = _json.loads(row.value) if row.value is not None else None
+    except Exception:
+        val = None
+    return RoomStateOut(
+        key=row.key, value=val, version=row.version, updated_at=row.updated_at,
+    )
+
+
+@router.put("/{room_id}/state/{key}", response_model=RoomStateOut)
+async def put_room_state(
+    room_id: str,
+    key: str,
+    payload: RoomStateWrite,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """写入或更新房间共享键。版本号自动 +1。"""
+    if not key or len(key) > 64:
+        raise HTTPException(status_code=400, detail="非法 key")
+    room_uuid = PyUUID(room_id)
+    await _ensure_room_member(db, room_uuid, user.id)
+
+    try:
+        serialized = _json.dumps(payload.value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="value 必须可 JSON 序列化")
+
+    result = await db.execute(
+        select(RoomState).where(
+            RoomState.room_id == room_uuid,
+            RoomState.key == key,
+        )
+    )
+    row = result.scalar_one_or_none()
+    if row:
+        row.value = serialized
+        row.version = (row.version or 0) + 1
+        row.updated_by = user.id
+    else:
+        row = RoomState(
+            room_id=room_uuid,
+            key=key,
+            value=serialized,
+            version=1,
+            updated_by=user.id,
+        )
+        db.add(row)
+
+    await db.flush()
+    await db.refresh(row)
+    return RoomStateOut(
+        key=row.key, value=payload.value, version=row.version, updated_at=row.updated_at,
+    )
 
 
 @router.post("/{room_id}/control")

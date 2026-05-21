@@ -29,12 +29,21 @@ class AIGateway:
         """根据model_id获取API endpoint和key"""
         s = self.settings
 
+        def pick_provider(vendor_base_url: str, vendor_key: str) -> tuple[str, str]:
+            """
+            仅当厂商 key 存在时才走厂商直连，避免出现
+            “厂商 base_url + 网关 key” 的错误组合。
+            """
+            if vendor_key:
+                return vendor_base_url or s.AI_GATEWAY_BASE_URL, vendor_key
+            return s.AI_GATEWAY_BASE_URL, s.AI_GATEWAY_API_KEY
+
         # TODO: 完善模型到provider的映射表
         provider_map = {
-            "deepseek-v3": (s.DEEPSEEK_BASE_URL or s.AI_GATEWAY_BASE_URL, s.DEEPSEEK_API_KEY or s.AI_GATEWAY_API_KEY),
-            "wenxin": (s.WENXIN_BASE_URL or s.AI_GATEWAY_BASE_URL, s.WENXIN_API_KEY or s.AI_GATEWAY_API_KEY),
-            "qianwen": (s.QIANWEN_BASE_URL or s.AI_GATEWAY_BASE_URL, s.QIANWEN_API_KEY or s.AI_GATEWAY_API_KEY),
-            "gpt-4": (s.OPENAI_BASE_URL or s.AI_GATEWAY_BASE_URL, s.OPENAI_API_KEY or s.AI_GATEWAY_API_KEY),
+            "deepseek-v3": pick_provider(s.DEEPSEEK_BASE_URL, s.DEEPSEEK_API_KEY),
+            "wenxin": pick_provider(s.WENXIN_BASE_URL, s.WENXIN_API_KEY),
+            "qianwen": pick_provider(s.QIANWEN_BASE_URL, s.QIANWEN_API_KEY),
+            "gpt-4": pick_provider(s.OPENAI_BASE_URL, s.OPENAI_API_KEY),
             "claude": (s.AI_GATEWAY_BASE_URL, s.AI_GATEWAY_API_KEY),
             "gemini": (s.AI_GATEWAY_BASE_URL, s.AI_GATEWAY_API_KEY),
             "kimi": (s.AI_GATEWAY_BASE_URL, s.AI_GATEWAY_API_KEY),

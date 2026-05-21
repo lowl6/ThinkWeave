@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
-    <script src="workflow-nav.js"></script>
-    <script src="thinklet-common.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
+    <script src="workflow-nav.js?v=20260515-1"></script>
+    <script src="room-members.js?v=20260515-1"></script>
+    <script src="thinklet-common.js?v=20260515-1"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -69,16 +70,16 @@
             <button onclick="triggerAIExpand()" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> AI 发散
             </button>
-            <button class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
+            <button id="next-step-btn" class="bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-md flex items-center gap-2">
                 下一步 <i class="fa-solid fa-arrow-right"></i>
             </button>
             <a href="首页.html" class="text-slate-400 hover:text-slate-600 transition ml-2" title="返回首页"><i class="fa-solid fa-home"></i></a>
         </div>
     </header>
 
-    <main class="flex-1 flex overflow-hidden">
+    <main class="flex-1 flex overflow-hidden min-w-0">
         <!-- 主内容区：轮次 + 观点树 -->
-        <div class="flex-1 flex flex-col">
+        <div class="flex-1 flex flex-col min-w-0">
             <!-- 轮次标签 -->
             <div class="px-6 py-3 flex items-center gap-3 border-b border-slate-200 bg-white">
                 <span class="text-xs text-slate-400 font-bold uppercase">轮次:</span>
@@ -268,14 +269,16 @@
             btn.disabled = false;
         }
 
-        // 从上一步导入种子数据
-        async function importFromRoom() {
+        // 从上一步导入种子数据(silent: 自动初始化时不弹 alert，按钮触发时才提示)
+        async function importFromRoom(silent) {
             const seeds = ThinkLetCommon.loadSeedData();
             if (seeds && seeds.length > 0) {
                 loadSeedsFromArray(seeds);
                 return;
             }
-            alert('当前房间暂无可导入的观点。请先完成上一个流程环节。');
+            if (!silent) {
+                alert('当前房间暂无可导入的观点。请先完成上一个流程环节。');
+            }
         }
 
         function loadSeedsFromArray(items) {
@@ -319,9 +322,13 @@
 
         // ═══ 初始化 ═══
         ThinkLetCommon.init();
-        if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) WorkflowNav.updateNextButton();
-        // 自动导入种子数据
-        importFromRoom();
+        if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) {
+            WorkflowNav.updateNextButton(document.getElementById('next-step-btn'));
+        }
+        importFromRoom(true);
+        ThinkLetCommon.setupRoomSync({
+            onTimelineChange: () => { if (ThinkLetCommon.getRoomId()) location.reload(); },
+        });
     </script>
     </div>
 </body>

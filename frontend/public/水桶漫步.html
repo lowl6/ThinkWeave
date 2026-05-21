@@ -7,9 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
-    <script src="workflow-nav.js"></script>
-    <script src="thinklet-common.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
+    <script src="workflow-nav.js?v=20260515-1"></script>
+    <script src="room-members.js?v=20260515-1"></script>
+    <script src="thinklet-common.js?v=20260515-1"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -322,8 +323,12 @@
 
         render();
 
-        // 确认分类：保存已分类观点到步骤结果
+        // 确认分类：保存已分类观点到步骤结果（仅房主）
         function confirmClassify() {
+            if (typeof WorkflowNav !== 'undefined' && WorkflowNav.isHost && !WorkflowNav.isHost()) {
+                alert('仅房主可应用结果。');
+                return;
+            }
             const classifiedIdeas = [];
             buckets.forEach(b => {
                 b.ideas.forEach(id => {
@@ -335,12 +340,19 @@
                 if (!confirm(`还有 ${unassignedIds.length} 条观点未分类，确认应用当前结果？`)) return;
             }
             ThinkLetCommon.saveStepResult(classifiedIdeas);
-            alert(`分类已确认！\n已分类: ${classifiedIdeas.length} 条\n未分类: ${unassignedIds.length} 条`);
+            if (typeof WorkflowNav !== 'undefined' && WorkflowNav.completeCurrentStepAndGoNext) {
+                WorkflowNav.completeCurrentStepAndGoNext();
+            } else {
+                alert(`分类已确认！\n已分类: ${classifiedIdeas.length} 条\n未分类: ${unassignedIds.length} 条`);
+            }
         }
 
         // ═══ 共用模块初始化 ═══
         ThinkLetCommon.init();
         if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) WorkflowNav.updateNextButton();
+        ThinkLetCommon.setupRoomSync({
+            onTimelineChange: () => { if (ThinkLetCommon.getRoomId()) location.reload(); },
+        });
     </script>
     </div>
 </body>

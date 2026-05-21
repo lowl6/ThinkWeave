@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
     <style>
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #f8fafc; }
@@ -242,10 +242,7 @@
             <div class="flex items-center gap-2">
                 <div class="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
                     <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
-                </div>
-                <div class="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full cursor-pointer" onclick="toggleTimerControl()">
-                    <i class="fa-solid fa-clock"></i>
-                    <span id="room-timer">00:00:00</span>
+                    <span>在线</span>
                 </div>
                 <button onclick="toggleDrawer()" class="w-7 h-7 rounded-lg hover:bg-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-600 transition" title="收起面板">
                     <i id="drawer-icon" class="fa-solid fa-angles-right text-sm"></i>
@@ -820,119 +817,7 @@
         </div>
     </div>
 
-    <!-- 计时器控制弹出框 -->
-    <div id="timer-control" class="fixed top-20 right-80 bg-white rounded-2xl shadow-2xl border border-slate-200 w-72 hidden z-50">
-        <div class="p-4 border-b border-slate-100">
-            <h4 class="font-bold text-slate-700 flex items-center gap-2"><i class="fa-solid fa-clock text-slate-500"></i> 研讨计时器</h4>
-        </div>
-        <div class="p-4 space-y-4">
-            <div class="text-center">
-                <div id="timer-display" class="text-4xl font-mono font-bold text-slate-800">00:00:00</div>
-                <div id="timer-status-text" class="text-xs text-slate-400 mt-1">未开始</div>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="startTimer()" id="timer-start-btn" class="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-1">
-                    <i class="fa-solid fa-play"></i> 开始
-                </button>
-                <button onclick="pauseTimer()" id="timer-pause-btn" class="flex-1 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-sm font-medium transition flex items-center justify-center gap-1 hidden">
-                    <i class="fa-solid fa-pause"></i> 暂停
-                </button>
-                <button onclick="resetTimer()" class="flex-1 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-sm font-medium transition flex items-center justify-center gap-1">
-                    <i class="fa-solid fa-rotate-left"></i> 重置
-                </button>
-            </div>
-            <div>
-                <label class="text-xs text-slate-500 font-medium">预设时长 (分钟)</label>
-                <div class="flex gap-2 mt-1.5">
-                    <button onclick="setTimerPreset(5)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">5 min</button>
-                    <button onclick="setTimerPreset(10)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">10 min</button>
-                    <button onclick="setTimerPreset(15)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">15 min</button>
-                    <button onclick="setTimerPreset(30)" class="flex-1 py-1.5 border border-slate-200 rounded-lg text-xs font-medium hover:bg-blue-50 hover:border-blue-300 transition">30 min</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <script>
-        // ═══ 计时器 ═══════════════════════════════════════════
-        let timerSeconds = 0;
-        let timerInterval = null;
-        let timerRunning = false;
-        let timerMode = 'up'; // 'up' = 正计时, 'down' = 倒计时
-        let timerTargetSeconds = 0;
-
-        function formatTime(sec) {
-            const h = String(Math.floor(sec / 3600)).padStart(2, '0');
-            const m = String(Math.floor((sec % 3600) / 60)).padStart(2, '0');
-            const s = String(sec % 60).padStart(2, '0');
-            return `${h}:${m}:${s}`;
-        }
-
-        function updateTimerUI() {
-            const display = formatTime(timerSeconds);
-            document.getElementById('room-timer').textContent = display;
-            const timerDisplay = document.getElementById('timer-display');
-            if (timerDisplay) timerDisplay.textContent = display;
-        }
-
-        function startTimer() {
-            if (timerRunning) return;
-            timerRunning = true;
-            document.getElementById('timer-start-btn').classList.add('hidden');
-            document.getElementById('timer-pause-btn').classList.remove('hidden');
-            document.getElementById('timer-status-text').textContent = timerMode === 'down' ? '倒计时进行中' : '正计时中';
-            timerInterval = setInterval(() => {
-                if (timerMode === 'down') {
-                    timerSeconds--;
-                    if (timerSeconds <= 0) {
-                        timerSeconds = 0;
-                        pauseTimer();
-                        document.getElementById('timer-status-text').textContent = '时间到！';
-                        showToast('⏰ 研讨时间到！');
-                    }
-                } else {
-                    timerSeconds++;
-                }
-                updateTimerUI();
-            }, 1000);
-        }
-
-        function pauseTimer() {
-            timerRunning = false;
-            clearInterval(timerInterval);
-            document.getElementById('timer-start-btn').classList.remove('hidden');
-            document.getElementById('timer-pause-btn').classList.add('hidden');
-            document.getElementById('timer-status-text').textContent = '已暂停';
-        }
-
-        function resetTimer() {
-            pauseTimer();
-            timerSeconds = 0;
-            timerMode = 'up';
-            updateTimerUI();
-            document.getElementById('timer-status-text').textContent = '未开始';
-        }
-
-        function setTimerPreset(minutes) {
-            pauseTimer();
-            timerMode = 'down';
-            timerSeconds = minutes * 60;
-            timerTargetSeconds = timerSeconds;
-            updateTimerUI();
-            document.getElementById('timer-status-text').textContent = `已设置 ${minutes} 分钟倒计时`;
-        }
-
-        function toggleTimerControl() {
-            const ctrl = document.getElementById('timer-control');
-            ctrl.classList.toggle('hidden');
-        }
-        document.addEventListener('click', (e) => {
-            const ctrl = document.getElementById('timer-control');
-            if (!ctrl.classList.contains('hidden') && !ctrl.contains(e.target) && !e.target.closest('[onclick="toggleTimerControl()"]')) {
-                ctrl.classList.add('hidden');
-            }
-        });
-
         // ═══ 输入ID加入房间 ═════════════════════════════════
         function openJoinRoomModal() {
             document.getElementById('join-room-modal').classList.remove('hidden');
@@ -965,6 +850,13 @@
                 const data = await resp.json();
                 if (!resp.ok) { showToast('❌ ' + (data.detail || '加入失败')); return; }
                 closeJoinRoomModal();
+                const isAdvanced = Array.isArray(data.workflow_steps) && data.workflow_steps.length > 0;
+                if (isAdvanced) {
+                    showToast('✅ 已加入高级房间，正在进入流程…');
+                    loadMyRooms();
+                    await openAdvancedRoom(data.id);
+                    return;
+                }
                 showToast(`✅ 已加入房间 ${roomId}`);
                 currentRoomId = data.id;
                 currentRoomData = data;
@@ -1000,10 +892,26 @@
             roomMembers = (roomData.members || []).map(m => ({
                 name: m.display_name || '成员',
                 role: m.role === 'host' ? '主持人' : '团队成员',
-                isMe: me && m.user_id === me.id,
+                isMe: !!(me && m.user_id != null && String(m.user_id) === String(me.id)),
                 online: m.is_online,
             }));
             renderMemberPanel();
+        }
+
+        /** 后台定时轮询当前房间成员列表（处理"其他成员加入后房主不会马上显示"问题） */
+        let _roomPollTimer = null;
+        function startRoomMemberPoll() {
+            if (_roomPollTimer) clearInterval(_roomPollTimer);
+            _roomPollTimer = setInterval(async () => {
+                if (!currentRoomId || !Auth.isLoggedIn()) return;
+                try {
+                    const resp = await Auth.apiCall('/api/rooms/' + currentRoomId);
+                    if (!resp.ok) return;
+                    const room = await resp.json();
+                    currentRoomData = room;
+                    renderRoomMembers(room);
+                } catch {}
+            }, 5000);
         }
 
         function renderMemberPanel() {
@@ -1015,18 +923,23 @@
             container.innerHTML = '';
             roomMembers.forEach(m => {
                 const isMe = m.isMe;
+                const isHostRole = m.role === '主持人';
+                const avatarLabel = isHostRole ? '主持' : ((m.name && m.name[0]) || '员');
+                const avatarBg = isHostRole
+                    ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white'
+                    : 'bg-blue-100 text-blue-600';
                 container.innerHTML += `
                     <div class="flex items-center gap-3 p-2 rounded-lg ${isMe ? 'bg-blue-50/50 border border-blue-100/50' : 'hover:bg-slate-50'} transition ${isMe ? '' : 'cursor-pointer'}">
                         <div class="relative">
-                            <div class="w-10 h-10 rounded-full ${isMe ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-xs font-bold shadow-md">
-                                ${isMe ? '主持人' : '成员'}
+                            <div class="w-10 h-10 rounded-full ${avatarBg} flex items-center justify-center text-xs font-bold shadow-md">
+                                ${avatarLabel}
                             </div>
                             <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 ${m.online ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full ${isMe ? 'pulse-dot' : ''}"></div>
                         </div>
                         <div class="flex-1">
                             <div class="text-sm font-bold text-slate-${isMe ? '800' : '700'}">${m.name}${isMe ? ' (我)' : ''}</div>
                             <div class="flex items-center gap-1">
-                                ${isMe ? '<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">主持人</span>' : `<div class="text-xs text-slate-400">${m.role}</div>`}
+                                ${isHostRole ? '<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">主持人</span>' : `<div class="text-xs text-slate-400">${m.role}</div>`}
                             </div>
                         </div>
                     </div>
@@ -1178,7 +1091,7 @@
                         badge = '';
                     }
                     el.className = `cursor-pointer py-2.5 px-3 rounded-lg hover:bg-slate-800 text-sm text-slate-300 transition hover:text-white border-l-2 ${borderColor} flex flex-col gap-1 group ${isActive ? 'bg-slate-800 text-white' : ''}`;
-                    el.onclick = () => enterRoom(room.id);
+                    el.onclick = () => isAdvanced ? openAdvancedRoom(room.id) : enterRoom(room.id);
 
                     // 主行：图标 + 标题 + 标记 + 删除
                     let mainRow = `<div class="flex items-center gap-2"><i class="${icon} text-xs ${iconColor}"></i><span class="truncate flex-1">${room.topic || '房间 ' + room.room_code}</span>${badge}<button onclick="event.stopPropagation(); deleteRoom('${room.id}')" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-red-400 transition ml-1 flex-shrink-0" title="删除房间"><i class="fa-solid fa-trash-can text-xs"></i></button></div>`;
@@ -1194,6 +1107,59 @@
                     container.appendChild(el);
                 });
             } catch { /* ignore */ }
+        }
+
+        // 高级房间：从侧栏直接进入并继续原始流程
+        async function openAdvancedRoom(roomId) {
+            if (!Auth.isLoggedIn()) { Auth.showAuthModal(); return; }
+            try {
+                const resp = await Auth.apiCall('/api/rooms/' + roomId);
+                if (!resp.ok) { showToast('打开房间失败'); return; }
+                const room = await resp.json();
+
+                const THINKLET_META = {
+                    'FreeBrainstorm': { icon: 'fa-bolt', color: 'green', label: '自由头脑风暴', type: '发散', page: '自由头脑风暴.html' },
+                    'LeafHopper': { icon: 'fa-leaf', color: 'green', label: '思维跳跃', type: '发散', page: '思维跳跃.html' },
+                    'FastFocus': { icon: 'fa-bullseye', color: 'blue', label: '快速聚焦', type: '收敛', page: '快速聚焦.html' },
+                    'BucketWalk': { icon: 'fa-bucket', color: 'indigo', label: '水桶漫步', type: '分类', page: '水桶漫步.html' },
+                    'PopcornSort': { icon: 'fa-arrow-down-short-wide', color: 'teal', label: '米花拾掇', type: '收敛', page: '米花拾掇.html' },
+                    'StrawPoll': { icon: 'fa-check-to-slot', color: 'blue', label: '麦秆投票', type: '评估', page: '麦秆投票.html' },
+                };
+
+                const steps = (room.workflow_steps || [])
+                    .slice()
+                    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                    .map(s => ({
+                        type: s.thinklet_type,
+                        time: s.duration_minutes,
+                        title: s.title,
+                        prompt: s.prompt,
+                        thinklet: THINKLET_META[s.thinklet_type] || {},
+                    }));
+
+                const wfObj = {
+                    roomId: room.id,
+                    roomCode: room.room_code,
+                    topic: room.topic,
+                    steps,
+                    createdAt: room.created_at,
+                    createdBy: room.created_by,
+                };
+                ScopedStorage.set('tw_room_workflow', wfObj, room.id);
+                ScopedStorage.saveRoomWorkflow(wfObj, room.id);
+
+                currentRoomId = room.id;
+                currentRoomData = room;
+                loadMyRooms();
+
+                const progress = ScopedStorage.getRoomShared('timeline', room.id) || ScopedStorage.get('tw_timeline_progress_' + room.id);
+                const idx = progress && typeof progress.currentStep === 'number' ? progress.currentStep : 0;
+                const step = steps[Math.max(0, Math.min(idx, steps.length - 1))];
+                const page = step && step.thinklet && step.thinklet.page ? step.thinklet.page : '研讨时间轴.html';
+                window.location.href = page + '?roomId=' + encodeURIComponent(room.id);
+            } catch (e) {
+                showToast('❌ ' + e.message);
+            }
         }
 
         /** 删除房间 */
@@ -1220,13 +1186,17 @@
             } catch (e) { showToast('❌ ' + e.message); }
         }
 
-        /** 进入某个房间（从侧栏点击） */
+        /** 进入某个房间（从侧栏点击或 URL ?room=UUID）：高级房跳转 ThinkLet 流程，普通房留在首页聊天 */
         async function enterRoom(roomId) {
             if (!Auth.isLoggedIn()) { Auth.showAuthModal(); return; }
             try {
                 const resp = await Auth.apiCall('/api/rooms/' + roomId);
                 if (!resp.ok) { showToast('打开房间失败'); return; }
                 const room = await resp.json();
+                if (Array.isArray(room.workflow_steps) && room.workflow_steps.length > 0) {
+                    await openAdvancedRoom(room.id);
+                    return;
+                }
                 currentRoomId = room.id;
                 currentRoomData = room;
                 renderRoomMembers(room);
@@ -1942,7 +1912,6 @@
             }
 
             renderHistorySidebar();
-            updateTimerUI();
 
             // 自动轮询：每5秒刷新当前房间的消息和房间列表
             setInterval(() => {
@@ -1992,6 +1961,7 @@
             renderAdoptedPanel();
             loadMyRooms();
             renderHistorySidebar();
+            startRoomMemberPoll();
             showToast('✅ 欢迎, ' + user.display_name);
         }
 
@@ -2267,6 +2237,40 @@
             const user = Auth.getUser();
             const userName = user ? user.display_name : '访客';
             const userAvatar = user ? (user.avatar || userName[0]) : '?';
+
+            // 首次对话：自动创建一个普通房间（蓝色标识），并加入侧栏列表
+            if (!currentRoomId) {
+                if (!Auth.isLoggedIn()) {
+                    Auth.showAuthModal();
+                    isSending = false;
+                    return;
+                }
+                try {
+                    const autoTopic = (message.length > 60 ? message.slice(0, 60) + '…' : message) || '普通研讨';
+                    const resp = await Auth.apiCall('/api/rooms', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            topic: autoTopic,
+                            password: null,
+                            agents: [],
+                            workflow: [],
+                        }),
+                    });
+                    const room = await resp.json().catch(() => null);
+                    if (!resp.ok || !room || !room.id) {
+                        showToast('❌ 自动创建房间失败');
+                        isSending = false;
+                        return;
+                    }
+                    currentRoomId = room.id;
+                    currentRoomData = room;
+                    loadMyRooms();
+                } catch (e) {
+                    showToast('❌ 自动创建房间失败: ' + e.message);
+                    isSending = false;
+                    return;
+                }
+            }
 
             // 1. 切换视图
             document.getElementById('welcome-screen').classList.add('hidden');

@@ -1,17 +1,20 @@
 // ═══════════════════════════════════════════════════════════
 // thinklet-common.js — 所有 ThinkLet 页面共用的基础模块
-// 提供: 左侧流程栏注入、右侧成员面板注入、标准数据加载/保存
+// 提供: 左侧流程栏注入、右侧成员面板注入(复用 RoomMembers 模块)、
+//        标准数据加载/保存。注意：右侧面板不再包含计时器，计时由
+//        页面中间的 #timer(由 WorkflowNav 统一控制)负责。
+// 依赖: auth.js, storage.js, room-members.js, workflow-nav.js
 // ═══════════════════════════════════════════════════════════
 
 const ThinkLetCommon = (() => {
 
     const _roomId = new URLSearchParams(location.search).get('roomId') || null;
 
-    // AI 模型配置（与首页一致）
+    // 兼容旧代码: 仅保留 id / name / iconClass / iconName / role 字段
     const AI_MODELS = [
         { id: 'deepseek-v3', name: 'DeepSeek V3', iconClass: 'bg-blue-100 text-blue-600', iconName: 'fa-code', role: '逻辑推理专家' },
         { id: 'wenxin', name: '文心一言', iconClass: 'bg-indigo-100 text-indigo-600', iconName: 'fa-brain', role: '知识整合专家' },
-        { id: 'qianwen', name: '通义千问', iconClass: 'bg-blue-100 text-blue-600', iconName: 'fa-cloud', role: '创意发散 (休眠)' },
+        { id: 'qianwen', name: '通义千问', iconClass: 'bg-red-100 text-red-600', iconName: 'fa-cloud', role: '创意发散专家' },
         { id: 'gpt-4', name: 'GPT-4', iconClass: 'bg-green-100 text-green-600', iconName: 'fa-microchip', role: '全能分析专家' },
         { id: 'claude', name: 'Claude', iconClass: 'bg-blue-100 text-blue-600', iconName: 'fa-feather', role: '文字表达专家' },
         { id: 'gemini', name: 'Gemini', iconClass: 'bg-cyan-100 text-cyan-600', iconName: 'fa-star', role: '多模态专家' },
@@ -19,14 +22,9 @@ const ThinkLetCommon = (() => {
         { id: 'glm-4', name: 'GLM-4', iconClass: 'bg-rose-100 text-rose-600', iconName: 'fa-bolt', role: '中文理解专家' },
     ];
 
-    let aiMembers = [];
-    let humanMembers = [];
-
     // ──────────────── 左侧流程侧栏 ─────────────────
 
-    /** 生成左侧 workflow 侧栏 HTML（插入到 body 最前面） */
     function injectWorkflowSidebar() {
-        // 如果页面已有 workflow-sidebar 就不再注入
         if (document.getElementById('workflow-sidebar')) return;
 
         const aside = document.createElement('aside');
@@ -57,13 +55,11 @@ const ThinkLetCommon = (() => {
             </div>
         `;
 
-        // 插入到 body 的第一个子元素之前
         document.body.insertBefore(aside, document.body.firstChild);
     }
 
-    // ──────────────── 右侧成员面板 ─────────────────
+    // ──────────────── 右侧成员面板（复用 RoomMembers，与首页/创建页一致） ─────────────────
 
-    /** 生成右侧成员面板 HTML（插入到 body 末尾） */
     function injectMembersPanel() {
         if (document.getElementById('tc-members-panel')) return;
 
@@ -77,6 +73,7 @@ const ThinkLetCommon = (() => {
                 <div class="flex items-center gap-2">
                     <div class="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
                         <span class="w-2 h-2 rounded-full bg-green-500" style="box-shadow:0 0 0 0 rgba(34,197,94,.7);animation:pulse-green 2s infinite"></span>
+                        <span>在线</span>
                     </div>
                     <button onclick="ThinkLetCommon.toggleMembersPanel()" class="ml-1 text-slate-400 hover:text-slate-600 transition p-1 rounded hover:bg-slate-100" title="收起面板">
                         <i id="tc-members-icon" class="fa-solid fa-angles-right text-sm"></i>
@@ -87,44 +84,32 @@ const ThinkLetCommon = (() => {
                 <div class="mb-4">
                     <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                         <span id="tc-ai-title">AI 队友 (0)</span>
-                        <button onclick="ThinkLetCommon.openAddAIModal()" class="text-blue-400 hover:text-blue-600 transition" title="添加 AI 队友"><i class="fa-solid fa-plus"></i></button>
+                        <i class="fa-solid fa-robot opacity-50"></i>
                     </div>
                     <div id="tc-ai-list" class="space-y-1"></div>
+                    <button type="button" onclick="RoomMembers.openAddAI()" class="w-full mt-2 py-2.5 px-3 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 transition flex items-center justify-center gap-2 text-sm font-medium group">
+                        <div class="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-blue-200 flex items-center justify-center transition">
+                            <i class="fa-solid fa-plus text-xs"></i>
+                        </div>
+                        <span>添加 AI 成员</span>
+                    </button>
                 </div>
                 <div class="border-t border-slate-100 my-2 mx-3"></div>
                 <div class="mb-4">
                     <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
                         <span id="tc-human-title">人类团队 (0)</span>
-                        <button onclick="ThinkLetCommon.addHumanSeat()" class="text-blue-400 hover:text-blue-600 transition" title="添加"><i class="fa-solid fa-plus"></i></button>
+                        <i class="fa-solid fa-user-group opacity-50"></i>
                     </div>
                     <div id="tc-human-list" class="space-y-1"></div>
                 </div>
             </div>
             <div class="p-4 border-t border-slate-100">
-                <button onclick="ThinkLetCommon.openInviteInfo()" class="w-full py-2.5 rounded-lg border border-dashed border-slate-300 text-slate-500 text-sm font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-2">
+                <button type="button" onclick="RoomMembers.openInvite()" class="w-full py-2.5 rounded-lg border border-dashed border-slate-300 text-slate-500 text-sm font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-2">
                     <i class="fa-solid fa-user-plus"></i> 邀请新成员
                 </button>
             </div>
         `;
         document.body.appendChild(aside);
-
-        // 添加 AI 弹窗
-        if (!document.getElementById('tc-add-ai-modal')) {
-            const modal = document.createElement('div');
-            modal.id = 'tc-add-ai-modal';
-            modal.className = 'fixed inset-0 bg-black/50 z-50 hidden items-center justify-center';
-            modal.innerHTML = `
-                <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-lg text-slate-800">添加 AI 队友</h3>
-                        <button onclick="ThinkLetCommon.closeAddAIModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
-                    </div>
-                    <div id="tc-ai-options" class="space-y-2 max-h-64 overflow-y-auto"></div>
-                    <button onclick="ThinkLetCommon.confirmAddAI()" class="mt-4 w-full bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg text-sm font-medium transition">确认添加</button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-        }
     }
 
     let _membersPanelExpanded = true;
@@ -147,127 +132,6 @@ const ThinkLetCommon = (() => {
         }
     }
 
-    function loadMembers() {
-        const saved = ScopedStorage.loadAIMembers(_roomId);
-        if (saved && saved.length > 0) {
-            aiMembers = saved;
-        } else {
-            // 默认 DeepSeek V3
-            const d = AI_MODELS[0];
-            aiMembers = [{ id: d.id, name: d.name, iconClass: d.iconClass, iconName: d.iconName }];
-        }
-        try {
-            const user = Auth.getUser();
-            humanMembers = [{ name: user ? user.display_name : '我', role: '主持人', isHost: true }];
-        } catch {
-            humanMembers = [{ name: '我', role: '主持人', isHost: true }];
-        }
-        renderMembers();
-    }
-
-    function renderMembers() {
-        const aiList = document.getElementById('tc-ai-list');
-        const aiTitle = document.getElementById('tc-ai-title');
-        if (aiTitle) aiTitle.textContent = `AI 队友 (${aiMembers.length})`;
-        if (aiList) {
-            aiList.innerHTML = aiMembers.map(m => {
-                const bgClass = m.iconClass.split(' ')[0] || 'bg-blue-100';
-                const textClass = m.iconClass.split(' ')[1] || 'text-blue-600';
-                const role = (AI_MODELS.find(a => a.id === m.id) || {}).role || 'AI 智能体';
-                return `
-                <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer group">
-                    <div class="relative">
-                        <div class="w-10 h-10 rounded-full ${bgClass} flex items-center justify-center ${textClass}"><i class="fa-solid ${m.iconName}"></i></div>
-                        <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-bold text-slate-700 truncate">${m.name}</div>
-                        <div class="text-xs text-slate-400">${role}</div>
-                    </div>
-                    <button onclick="ThinkLetCommon.removeAI('${m.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition p-1" title="移除"><i class="fa-solid fa-xmark text-xs"></i></button>
-                </div>`;
-            }).join('');
-        }
-        const humanList = document.getElementById('tc-human-list');
-        const humanTitle = document.getElementById('tc-human-title');
-        if (humanTitle) humanTitle.textContent = `人类团队 (${humanMembers.length})`;
-        if (humanList) {
-            humanList.innerHTML = humanMembers.map(m => `
-                <div class="flex items-center gap-3 p-2 rounded-lg ${m.isHost ? 'bg-blue-50/50 border border-blue-100/50' : 'hover:bg-slate-50'} transition group">
-                    <div class="relative">
-                        <div class="w-10 h-10 rounded-full ${m.isHost ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-xs font-bold shadow-sm">${m.isHost ? '主持人' : (m.name||'?')[0]}</div>
-                        <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 ${m.isHost ? 'bg-green-500' : 'bg-slate-300'} border-2 border-white rounded-full"></div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-bold text-slate-800 truncate">${m.name}${m.isHost ? ' (我)' : ''}</div>
-                        ${m.isHost ? '<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">主持人</span>' : '<div class="text-xs text-slate-400">团队成员</div>'}
-                    </div>
-                    ${!m.isHost ? `<button onclick="ThinkLetCommon.removeHuman('${m.name}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition p-1"><i class="fa-solid fa-xmark text-xs"></i></button>` : ''}
-                </div>
-            `).join('');
-        }
-    }
-
-    function openAddAIModal() {
-        const modal = document.getElementById('tc-add-ai-modal');
-        const container = document.getElementById('tc-ai-options');
-        const existingIds = aiMembers.map(m => m.id);
-        const available = AI_MODELS.filter(m => !existingIds.includes(m.id));
-        if (available.length === 0) { alert('所有 AI 模型已添加'); return; }
-        container.innerHTML = available.map(m => `
-            <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-blue-300 cursor-pointer transition">
-                <input type="checkbox" class="tc-add-cb accent-blue-600" value="${m.id}">
-                <div class="w-8 h-8 rounded-full ${m.iconClass} flex items-center justify-center"><i class="fa-solid ${m.iconName} text-sm"></i></div>
-                <span class="text-sm font-medium text-slate-700">${m.name}</span>
-            </label>
-        `).join('');
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-    }
-
-    function closeAddAIModal() {
-        const modal = document.getElementById('tc-add-ai-modal');
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }
-
-    function confirmAddAI() {
-        document.querySelectorAll('.tc-add-cb:checked').forEach(cb => {
-            const m = AI_MODELS.find(a => a.id === cb.value);
-            if (m && !aiMembers.find(a => a.id === m.id)) {
-                aiMembers.push({ id: m.id, name: m.name, iconClass: m.iconClass, iconName: m.iconName });
-            }
-        });
-        ScopedStorage.saveAIMembers(aiMembers, _roomId);
-        renderMembers();
-        closeAddAIModal();
-    }
-
-    function removeAI(modelId) {
-        aiMembers = aiMembers.filter(m => m.id !== modelId);
-        ScopedStorage.saveAIMembers(aiMembers, _roomId);
-        renderMembers();
-    }
-
-    function addHumanSeat() {
-        const name = prompt('输入人类队友名称:');
-        if (name && name.trim()) {
-            humanMembers.push({ name: name.trim(), role: '团队成员', isHost: false });
-            renderMembers();
-        }
-    }
-
-    function removeHuman(name) {
-        humanMembers = humanMembers.filter(m => m.name !== name);
-        renderMembers();
-    }
-
-    function openInviteInfo() {
-        const wf = WorkflowNav.getWorkflow ? WorkflowNav.getWorkflow() : null;
-        const roomId = _roomId || (wf && wf.roomId) || '';
-        alert('房间 ID: ' + roomId + '\n\n请将此 ID 分享给队友，在首页「输入 ID 加入」即可。');
-    }
-
     // ──────────────── 标准数据加载/保存 ─────────────────
 
     /**
@@ -278,24 +142,21 @@ const ThinkLetCommon = (() => {
      * 返回 [{id, text, author, votes}]
      */
     function loadSeedData() {
-        // 1. 尝试加载上一步结果
         if (typeof WorkflowNav !== 'undefined' && WorkflowNav.getCurrentIndex) {
             const idx = WorkflowNav.getCurrentIndex();
             if (idx > 0) {
-                const prevResult = ScopedStorage.get('tw_step_result_' + (idx - 1), _roomId);
+                const prevResult = ScopedStorage.loadStepResult(idx - 1, _roomId)
+                    || ScopedStorage.get('tw_step_result_' + (idx - 1), _roomId);
                 if (prevResult && prevResult.length > 0) return prevResult;
             }
         }
-        // 2. 共享观点
         const shared = ScopedStorage.loadSharedIdeas(_roomId);
         if (shared && shared.length > 0) return shared;
-        // 3. 头脑风暴灵感池
-        const bsIdeas = ScopedStorage.get('tw_bs_ideas', _roomId);
+        const bsIdeas = ScopedStorage.loadBrainstormIdeas(_roomId);
         if (bsIdeas && bsIdeas.length > 0) {
             return bsIdeas.map((idea, i) => ({ id: i + 1, text: idea.text, author: idea.source || 'AI', votes: 0 }));
         }
-        // 4. 头脑风暴聊天提取
-        const bsChat = ScopedStorage.get('tw_bs_chat', _roomId);
+        const bsChat = ScopedStorage.loadBrainstormChat(_roomId);
         if (bsChat && bsChat.length > 0) {
             const result = [];
             let idx = 0;
@@ -317,19 +178,62 @@ const ThinkLetCommon = (() => {
 
     /**
      * 保存当前步骤结果（同时写入 step_result 和 shared_ideas）
-     * @param {Array} ideas — [{id, text, author, votes, ...}]
      */
     function saveStepResult(ideas) {
         if (!ideas || ideas.length === 0) return;
-        // 保存到 step_result_{index}
+        if (_roomId && typeof WorkflowNav !== 'undefined' && WorkflowNav.isHost && !WorkflowNav.isHost()) {
+            return;
+        }
         if (typeof WorkflowNav !== 'undefined' && WorkflowNav.getCurrentIndex) {
             const idx = WorkflowNav.getCurrentIndex();
             if (idx >= 0) {
-                ScopedStorage.set('tw_step_result_' + idx, ideas, _roomId);
+                ScopedStorage.saveStepResult(idx, ideas, _roomId);
             }
         }
-        // 同时更新 shared_ideas 以兼容旧页面
         ScopedStorage.saveSharedIdeas(ideas, _roomId);
+    }
+
+    /**
+     * 房间内有 roomId 时监听共享数据（跨标签 storage + 同页 CustomEvent）
+     * @param {Object} callbacks — onChatChange, onIdeasChange, onTimelineChange, onWorkflowChange, onAIMembersChange
+     */
+    function setupRoomSync(callbacks) {
+        callbacks = callbacks || {};
+        const rid = _roomId;
+        if (!rid) return;
+
+        function bind(suffix, reloadFn) {
+            if (typeof reloadFn !== 'function') return;
+            ScopedStorage.watchRoomShared(suffix, rid, () => reloadFn());
+            window.addEventListener('tw-roomshared', (e) => {
+                const d = e.detail;
+                if (d && String(d.roomId) === String(rid) && d.suffix === suffix) reloadFn();
+            });
+        }
+
+        bind('bs_chat', callbacks.onChatChange);
+        bind('bs_ideas', callbacks.onIdeasChange);
+        bind('timeline', callbacks.onTimelineChange);
+        bind('workflow', callbacks.onWorkflowChange);
+        bind('ai_members', callbacks.onAIMembersChange);
+        bind('human_members', callbacks.onHumanMembersChange);
+        bind('ideas', callbacks.onSharedIdeasChange);
+
+        // 启动后端共享 KV 轮询（首次拉取会自动派发 tw-roomshared 触发上面的回调）
+        try { ScopedStorage.startRoomSharedPoll(rid); } catch {}
+        // 注：房间成员（人类/AI）由 RoomMembers.mount 内置 5 秒轮询，无需在此重复
+    }
+
+    // ──────────────── 房间号/密码（给 RoomMembers 的邀请弹窗用） ─────────────────
+
+    function _getRoomCode() {
+        try {
+            const wf = (typeof WorkflowNav !== 'undefined' && WorkflowNav.getWorkflow) ? WorkflowNav.getWorkflow() : null;
+            if (wf && wf.roomCode) return wf.roomCode;
+            const stored = ScopedStorage.loadRoomWorkflow(_roomId) || ScopedStorage.get('tw_room_workflow', _roomId);
+            if (stored && stored.roomCode) return stored.roomCode;
+        } catch {}
+        return _roomId || '';
     }
 
     // ──────────────── 页面初始化 ─────────────────
@@ -341,17 +245,14 @@ const ThinkLetCommon = (() => {
     function init(opts) {
         opts = opts || {};
 
-        // 注入左侧流程侧栏
         if (!opts.skipLeftSidebar) {
             injectWorkflowSidebar();
         }
 
-        // 初始化 WorkflowNav
         if (typeof WorkflowNav !== 'undefined') {
             if (WorkflowNav.init()) {
                 const navContent = document.getElementById('workflow-nav-content');
                 if (navContent) WorkflowNav.renderSidebar(navContent);
-                // 更新用户名
                 try {
                     const user = Auth.getUser();
                     if (user) {
@@ -362,15 +263,44 @@ const ThinkLetCommon = (() => {
             }
         }
 
-        // 注入右侧成员面板
         if (!opts.skipRightPanel) {
             injectMembersPanel();
-            loadMembers();
+            if (typeof RoomMembers !== 'undefined') {
+                RoomMembers.mount({
+                    roomId: _roomId,
+                    isHost: (typeof WorkflowNav !== 'undefined' && WorkflowNav.isHost) ? !!WorkflowNav.isHost() : true,
+                    aiContainerId: 'tc-ai-list',
+                    humanContainerId: 'tc-human-list',
+                    aiCountId: 'tc-ai-title',
+                    humanCountId: 'tc-human-title',
+                    // 有 roomId 时人类列表以 API 为准，不再把本地用户假扮成主持人
+                    includeSelfAsHost: !_roomId,
+                    getRoomCode: _getRoomCode,
+                    getRoomPassword: () => '',
+                    onChange: () => {
+                        try {
+                            if (typeof window.onAIMembersChanged === 'function') window.onAIMembersChanged();
+                        } catch {}
+                        try {
+                            if (typeof WorkflowNav !== 'undefined' && WorkflowNav.updateNextButton) {
+                                WorkflowNav.updateNextButton(document.getElementById('next-step-btn'));
+                            }
+                        } catch {}
+                    },
+                });
+            } else {
+                console.warn('[ThinkLetCommon] RoomMembers 模块未加载；请确保在 thinklet-common.js 之前引入 room-members.js');
+            }
         }
     }
 
     function getRoomId() { return _roomId; }
-    function getAIMembers() { return aiMembers; }
+    function getAIMembers() {
+        try {
+            if (typeof RoomMembers !== 'undefined') return RoomMembers.getAIMembers();
+        } catch {}
+        return ScopedStorage.loadAIMembers(_roomId) || [];
+    }
 
     return {
         init,
@@ -379,13 +309,7 @@ const ThinkLetCommon = (() => {
         AI_MODELS,
         loadSeedData,
         saveStepResult,
+        setupRoomSync,
         toggleMembersPanel,
-        openAddAIModal,
-        closeAddAIModal,
-        confirmAddAI,
-        removeAI,
-        addHumanSeat,
-        removeHuman,
-        openInviteInfo,
     };
 })();

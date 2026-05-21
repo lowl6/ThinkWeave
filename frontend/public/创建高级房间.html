@@ -7,7 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
+    <script src="room-members.js?v=20260515-1"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -78,30 +79,32 @@
                 </div>
             </div>
 
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-robot text-blue-500"></i> AI 专家席位
-                    </h3>
-                    <button onclick="addAgentSeat()" class="text-xs px-2.5 py-1 rounded-md border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 transition flex items-center gap-1"><i class="fa-solid fa-plus"></i> 添加席位</button>
+            <!-- 房间成员（完全沿用首页右栏逻辑，点击齿轮可配置角色模板/参数/知识库） -->
+            <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div class="px-1 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span id="create-ai-count">AI 队友 (0)</span>
+                    <i class="fa-solid fa-robot opacity-50"></i>
                 </div>
-                
-                <div id="ai-agent-list" class="space-y-3">
-                    <!-- 由 JS 动态渲染 -->
-                </div>
-            </div>
+                <div id="create-ai-list" class="space-y-1"></div>
+                <button type="button" onclick="RoomMembers.openAddAI()" class="w-full mt-2 py-2.5 px-3 rounded-lg border-2 border-dashed border-slate-300 text-slate-500 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 transition flex items-center justify-center gap-2 text-sm font-medium group">
+                    <div class="w-6 h-6 rounded-full bg-slate-100 group-hover:bg-blue-200 flex items-center justify-center transition">
+                        <i class="fa-solid fa-plus text-xs"></i>
+                    </div>
+                    <span>添加 AI 成员</span>
+                </button>
 
-            <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="font-bold text-slate-800 flex items-center gap-2">
-                        <i class="fa-solid fa-user-group text-green-500"></i> 人类队友
-                    </h3>
-                    <button onclick="addHumanSeat()" class="text-xs px-2.5 py-1 rounded-md border border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 transition flex items-center gap-1"><i class="fa-solid fa-plus"></i> 添加成员</button>
+                <div class="border-t border-slate-100 my-3"></div>
+
+                <div class="px-1 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span id="create-human-count">人类团队 (0)</span>
+                    <i class="fa-solid fa-user-group opacity-50"></i>
                 </div>
-                <div id="human-seat-list" class="space-y-2">
-                    <!-- 由 JS 动态渲染 -->
-                </div>
-                <p class="text-xs text-slate-400 mt-3"><i class="fa-solid fa-circle-info mr-1"></i> 预设的人类成员将在房间创建后自动分配角色，或通过邀请链接加入。</p>
+                <div id="create-human-list" class="space-y-1"></div>
+                <button type="button" onclick="RoomMembers.openInvite()" class="w-full mt-2 py-2 rounded-lg border border-dashed border-slate-300 text-slate-500 text-xs font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-user-plus"></i>
+                    邀请人类队友
+                </button>
+                <p class="text-[11px] text-slate-400 mt-2 px-1 leading-relaxed"><i class="fa-solid fa-circle-info mr-1"></i>房间创建后会生成房间号，成员可凭房间号加入。</p>
             </div>
 
             <div class="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-2xl border border-blue-100 shadow-sm relative overflow-hidden group">
@@ -256,6 +259,7 @@
 
         function renderAgentSeats() {
             const container = document.getElementById('ai-agent-list');
+            if (!container) return;
             container.innerHTML = '';
             agentSeats.forEach((seat, idx) => {
                 const model = AVAILABLE_MODELS.find(m => m.id === seat.modelId) || AVAILABLE_MODELS[0];
@@ -306,6 +310,7 @@
 
         function renderHumanSeats() {
             const container = document.getElementById('human-seat-list');
+            if (!container) return;
             container.innerHTML = '';
             if (humanSeats.length === 0) {
                 container.innerHTML = '<div class="text-xs text-slate-400 text-center py-2">暂未添加人类成员</div>';
@@ -580,24 +585,10 @@
             if (!topic) { alert('请输入研讨主题'); return; }
             const password = document.getElementById('room-password-input').value || null;
 
-            // 收集 AI 专家席位
-            const agentToggles = document.querySelectorAll('#ai-agent-list input[type="checkbox"]');
-            const agents = [];
-            agentToggles.forEach((cb) => {
-                if (cb.checked) {
-                    agents.push({
-                        model_id: cb.dataset.modelId,
-                        role_template: cb.dataset.roleTemplate || 'default',
-                        system_prompt: cb.dataset.systemPrompt || '',
-                        temperature: 0.7,
-                        max_tokens: 2000,
-                        is_active: true,
-                    });
-                }
-            });
-
+            // 收集 AI 队友（来自共享 RoomMembers 模块 —— 每个 AI 包含角色模板 / 高级参数）
+            const agents = RoomMembers.toAgentsPayload();
             if (agents.length === 0) {
-                alert('请至少启用 1 个 AI 专家席位');
+                alert('请至少添加 1 个 AI 成员');
                 return;
             }
 
@@ -643,8 +634,20 @@
                 if (roomKnowledgeFiles.length > 0) {
                     ScopedStorage.set('tw_room_knowledge', roomKnowledgeFiles, data.id);
                 }
+                // 把在创建页配置好的 AI 成员（含模板/参数/知识库）迁移到新房间的 scope 下
+                try {
+                    const draftAIs = ScopedStorage.loadAIMembers(null) || RoomMembers.getAIMembers();
+                    if (draftAIs && draftAIs.length > 0) {
+                        ScopedStorage.saveAIMembers(draftAIs, data.id);
+                    }
+                    const draftHumans = ScopedStorage.loadHumanMembers(null);
+                    const draftList = draftHumans && draftHumans.length ? draftHumans : (ScopedStorage.get('tw_human_members') || []);
+                    if (draftList.length > 0) {
+                        ScopedStorage.saveHumanMembers(draftList, data.id);
+                    }
+                } catch {}
                 // 存储workflow供时间轴页面使用
-                ScopedStorage.set('tw_room_workflow', {
+                const wfObj = {
                     roomId: data.id,
                     roomCode: roomCode,
                     topic: topic,
@@ -653,7 +656,10 @@
                         thinklet: thinklets[s.type] || thinklets['FreeBrainstorm'],
                     })),
                     createdAt: new Date().toISOString(),
-                });
+                    createdBy: (data.created_by != null ? data.created_by : (Auth.getUser && Auth.getUser() ? Auth.getUser().id : null)),
+                };
+                ScopedStorage.set('tw_room_workflow', wfObj, data.id);
+                ScopedStorage.saveRoomWorkflow(wfObj, data.id);
                 // 跳转到第一个 ThinkLet 步骤（流程导航由 workflow-nav.js 接管）
                 const firstStep = currentSteps[0];
                 const firstPage = thinklets[firstStep.type]?.page || '自由头脑风暴.html';
@@ -665,6 +671,22 @@
                 btn.innerHTML = '<i class="fa-solid fa-rocket"></i> 立即创建';
             }
         }
+
+        // ═══ 房间成员（由 RoomMembers 模块统一接管，与首页右栏完全一致） ═══
+        window.addEventListener('DOMContentLoaded', () => {
+            // 创建前还没有 roomId；使用 null scope 作为"草稿"；创建成功后 createRoom() 会把草稿复制到真实 roomId
+            RoomMembers.mount({
+                roomId: null,
+                isHost: true,
+                aiContainerId: 'create-ai-list',
+                humanContainerId: 'create-human-list',
+                aiCountId: 'create-ai-count',
+                humanCountId: 'create-human-count',
+                includeSelfAsHost: true,
+                getRoomCode: () => '',      // 创建前房间号尚不存在
+                getRoomPassword: () => document.getElementById('room-password-input').value || '',
+            });
+        });
     </script>
 </body>
 </html>

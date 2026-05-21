@@ -15,6 +15,7 @@ from app.models.bucket_assignment import BucketAssignment
 from app.models.poll_ballot import PollBallot
 from app.models.knowledge_file import KnowledgeFile
 from app.models.subscription import Subscription
+from app.models.room_state import RoomState
 
 __all__ = [
     "User",
@@ -30,4 +31,5 @@ __all__ = [
     "PollBallot",
     "KnowledgeFile",
     "Subscription",
+    "RoomState",
 ]

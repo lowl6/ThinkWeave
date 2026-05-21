@@ -7,8 +7,10 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="auth.js"></script>
-    <script src="storage.js"></script>
-    <script src="workflow-nav.js"></script>
+    <script src="storage.js?v=20260515-1"></script>
+    <script src="workflow-nav.js?v=20260515-1"></script>
+    <script src="room-members.js?v=20260515-1"></script>
+    <script src="thinklet-common.js?v=20260515-1"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
@@ -60,17 +62,6 @@
         .idea-dragging { opacity: 0.4; }
         .idea-drag-over { border-top: 2px solid #3b82f6 !important; }
 
-        /* 抽屉收缩动画 */
-        .members-panel-collapsed {
-            width: 0 !important;
-            min-width: 0 !important;
-            overflow: hidden;
-            transition: width 0.3s ease-in-out;
-        }
-        .members-panel-expanded {
-            width: 18rem !important;
-            transition: width 0.3s ease-in-out;
-        }
     </style>
 
 
@@ -215,240 +206,9 @@
     </div>
     </main>
 
-    <!-- 右侧成员面板 -->
-    <aside id="members-panel" class="w-72 bg-white border-l border-slate-200 flex flex-col hidden lg:flex shadow-[0_0_15px_rgba(0,0,0,0.03)] z-10 members-panel-expanded">
-        <div class="h-16 flex items-center justify-between px-5 border-b border-slate-100">
-            <h2 class="font-bold text-slate-800">当前房间成员</h2>
-            <div class="flex items-center gap-2">
-                <div class="flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
-                    <span class="w-2 h-2 rounded-full bg-green-500 pulse-dot"></span>
-                </div>
-                <div class="flex items-center gap-1 text-xs font-medium text-slate-600 bg-slate-100 px-2 py-1 rounded-full">
-                    <i class="fa-solid fa-clock"></i>
-                    <span id="member-timer">00:00</span>
-                </div>
-                <button onclick="toggleMembersPanel()" class="ml-2 text-slate-400 hover:text-slate-600 transition p-1 rounded hover:bg-slate-100" title="收起面板">
-                    <i id="members-panel-icon" class="fa-solid fa-angles-right text-sm"></i>
-                </button>
-            </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto p-2">
-            <div class="mb-4">
-                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                    <span id="ai-member-title">AI 队友 (0)</span>
-                    <button onclick="openAddAIModal()" class="text-blue-400 hover:text-blue-600 transition" title="添加 AI 队友"><i class="fa-solid fa-plus"></i></button>
-                </div>
-                <div id="ai-member-list" class="space-y-1">
-                    <!-- 由 JS 动态渲染 -->
-                </div>
-            </div>
-
-            <div class="border-t border-slate-100 my-2 mx-3"></div>
-
-            <div class="mb-4">
-                <div class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
-                    <span id="human-member-title">人类团队 (1)</span>
-                    <button onclick="addHumanSeat()" class="text-blue-400 hover:text-blue-600 transition" title="添加人类队友"><i class="fa-solid fa-plus"></i></button>
-                </div>
-                <div id="human-member-list" class="space-y-1">
-                    <!-- 由 JS 动态渲染 -->
-                </div>
-            </div>
-        </div>
-
-        <div class="p-4 border-t border-slate-100">
-            <div class="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4">
-                <div class="flex items-center gap-2 mb-2">
-                    <i class="fa-solid fa-lightbulb text-green-600"></i>
-                    <span class="text-sm font-bold text-slate-800">灵感池统计</span>
-                </div>
-                <div class="text-2xl font-bold text-green-600" id="sidebar-idea-count">0</div>
-                <div class="text-xs text-slate-500 mt-1">条观点已收集</div>
-            </div>
-        </div>
-    </aside>
-
-    <!-- 添加 AI 队友弹窗 -->
-    <div id="add-ai-modal" class="fixed inset-0 bg-black/50 z-50 hidden items-center justify-center">
-        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-lg text-slate-800">添加 AI 队友</h3>
-                <button onclick="closeAddAIModal()" class="text-slate-400 hover:text-slate-600"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-            <div id="ai-model-options" class="space-y-2 max-h-64 overflow-y-auto">
-                <!-- 由 JS 渲染 -->
-            </div>
-            <button onclick="confirmAddAI()" class="mt-4 w-full bg-slate-800 hover:bg-slate-700 text-white py-2 rounded-lg text-sm font-medium transition">确认添加</button>
-        </div>
-    </div>
+    <!-- 右侧成员面板由 ThinkLetCommon.injectMembersPanel 注入 -->
 
     <script>
-        let isMembersPanelExpanded = true;
-        let brainstormAIMembers = []; // 动态 AI 成员列表
-        let brainstormHumanMembers = []; // 动态人类成员列表
-
-        function toggleMembersPanel() {
-            const panel = document.getElementById('members-panel');
-            const panelIcon = document.getElementById('members-panel-icon');
-            
-            isMembersPanelExpanded = !isMembersPanelExpanded;
-            
-            if (isMembersPanelExpanded) {
-                panel.classList.remove('members-panel-collapsed');
-                panel.classList.add('members-panel-expanded');
-                panelIcon.className = 'fa-solid fa-angles-right text-sm';
-            } else {
-                panel.classList.remove('members-panel-expanded');
-                panel.classList.add('members-panel-collapsed');
-                panelIcon.className = 'fa-solid fa-angles-left text-sm';
-            }
-        }
-
-        /** 初始化成员面板：从房间配置或默认一个 AI */
-        function initMembersPanel() {
-            // 尝试从 ScopedStorage 加载已保存的 AI 成员
-            const _roomId = new URLSearchParams(location.search).get('roomId') || null;
-            const saved = ScopedStorage.loadAIMembers(_roomId);
-            if (saved && saved.length > 0) {
-                brainstormAIMembers = saved;
-            } else {
-                // 默认只添加一个 DeepSeek V3
-                const defaultModel = AI_MODELS.find(m => m.id === 'deepseek-v3');
-                brainstormAIMembers = defaultModel ? [{ id: defaultModel.id, name: defaultModel.name, iconClass: defaultModel.iconClass, iconName: defaultModel.iconName }] : [];
-            }
-            // 初始化主持人
-            try {
-                const user = Auth.getUser();
-                brainstormHumanMembers = [{
-                    name: user ? user.display_name : '我',
-                    role: '主持人',
-                    isHost: true
-                }];
-            } catch {
-                brainstormHumanMembers = [{ name: '我', role: '主持人', isHost: true }];
-            }
-            renderMembersPanel();
-        }
-
-        /** 渲染成员面板 */
-        function renderMembersPanel() {
-            // AI 成员
-            const aiList = document.getElementById('ai-member-list');
-            const aiTitle = document.getElementById('ai-member-title');
-            if (aiTitle) aiTitle.textContent = `AI 队友 (${brainstormAIMembers.length})`;
-            if (aiList) {
-                aiList.innerHTML = brainstormAIMembers.map(m => `
-                    <div class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition cursor-pointer group">
-                        <div class="relative">
-                            <div class="w-10 h-10 rounded-full ${m.iconClass.split(' ')[0]} flex items-center justify-center ${m.iconClass.split(' ')[1] || ''}">
-                                <i class="fa-solid ${m.iconName}"></i>
-                            </div>
-                            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-bold text-slate-700 truncate">${m.name}</div>
-                            <div class="text-xs text-slate-400">AI 智能体</div>
-                        </div>
-                        <button onclick="removeAIMember('${m.id}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition p-1" title="移除"><i class="fa-solid fa-xmark text-xs"></i></button>
-                    </div>
-                `).join('');
-            }
-            // 人类成员
-            const humanList = document.getElementById('human-member-list');
-            const humanTitle = document.getElementById('human-member-title');
-            if (humanTitle) humanTitle.textContent = `人类团队 (${brainstormHumanMembers.length})`;
-            if (humanList) {
-                humanList.innerHTML = brainstormHumanMembers.map(m => `
-                    <div class="flex items-center gap-3 p-2 rounded-lg ${m.isHost ? 'bg-blue-50/50 border border-blue-100/50' : 'hover:bg-slate-50'} transition group">
-                        <div class="relative">
-                            <div class="w-10 h-10 rounded-full ${m.isHost ? 'bg-gradient-to-br from-blue-400 to-blue-500 text-white' : 'bg-blue-100 text-blue-600'} flex items-center justify-center text-xs font-bold shadow-sm">
-                                ${m.isHost ? '主持人' : m.name[0]}
-                            </div>
-                            <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 ${m.isHost ? 'bg-green-500 pulse-dot' : 'bg-slate-300'} border-2 border-white rounded-full"></div>
-                        </div>
-                        <div class="flex-1 min-w-0">
-                            <div class="text-sm font-bold text-slate-800 truncate">${m.name}</div>
-                            ${m.isHost ? '<span class="bg-blue-100 text-blue-700 text-[10px] font-bold px-1.5 py-0.5 rounded">主持人</span>' : '<div class="text-xs text-slate-400">团队成员</div>'}
-                        </div>
-                        ${!m.isHost ? `<button onclick="removeHumanMember('${m.name}')" class="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-red-500 transition p-1" title="移除"><i class="fa-solid fa-xmark text-xs"></i></button>` : ''}
-                    </div>
-                `).join('');
-            }
-            // 同步模型复选框状态
-            syncModelCheckboxes();
-        }
-
-        /** 同步 AI 成员面板和模型复选框 */
-        function syncModelCheckboxes() {
-            // 重新渲染复选框以只显示当前 AI 队友
-            renderModelCheckboxes();
-        }
-
-        /** 打开添加 AI 弹窗 */
-        function openAddAIModal() {
-            const modal = document.getElementById('add-ai-modal');
-            const container = document.getElementById('ai-model-options');
-            const existingIds = brainstormAIMembers.map(m => m.id);
-            const available = AI_MODELS.filter(m => !existingIds.includes(m.id));
-            if (available.length === 0) {
-                alert('所有 AI 模型已添加');
-                return;
-            }
-            container.innerHTML = available.map(m => `
-                <label class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 hover:border-blue-300 cursor-pointer transition">
-                    <input type="checkbox" class="add-ai-cb accent-blue-600" value="${m.id}">
-                    <div class="w-8 h-8 rounded-full ${m.iconClass} flex items-center justify-center"><i class="fa-solid ${m.iconName} text-sm"></i></div>
-                    <span class="text-sm font-medium text-slate-700">${m.name}</span>
-                </label>
-            `).join('');
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
-
-        function closeAddAIModal() {
-            const modal = document.getElementById('add-ai-modal');
-            modal.classList.add('hidden');
-            modal.classList.remove('flex');
-        }
-
-        function confirmAddAI() {
-            const checked = document.querySelectorAll('.add-ai-cb:checked');
-            checked.forEach(cb => {
-                const model = AI_MODELS.find(m => m.id === cb.value);
-                if (model && !brainstormAIMembers.find(m => m.id === model.id)) {
-                    brainstormAIMembers.push({ id: model.id, name: model.name, iconClass: model.iconClass, iconName: model.iconName });
-                }
-            });
-            renderMembersPanel();
-            saveBrainstormMembers();
-            closeAddAIModal();
-        }
-
-        function removeAIMember(modelId) {
-            brainstormAIMembers = brainstormAIMembers.filter(m => m.id !== modelId);
-            renderMembersPanel();
-            saveBrainstormMembers();
-        }
-
-        function saveBrainstormMembers() {
-            const _roomId = new URLSearchParams(location.search).get('roomId') || null;
-            ScopedStorage.saveAIMembers(brainstormAIMembers, _roomId);
-        }
-
-        function addHumanSeat() {
-            const name = prompt('输入人类队友名称:');
-            if (name && name.trim()) {
-                brainstormHumanMembers.push({ name: name.trim(), role: '团队成员', isHost: false });
-                renderMembersPanel();
-            }
-        }
-
-        function removeHumanMember(name) {
-            brainstormHumanMembers = brainstormHumanMembers.filter(m => m.name !== name);
-            renderMembersPanel();
-        }
-
         function handleEnter(e) {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -472,11 +232,9 @@
         let isSending = false;
         const _bsRoomId = new URLSearchParams(location.search).get('roomId') || null;
 
-        /** 保存头脑风暴聊天记录和灵感池到 ScopedStorage */
+        /** 保存头脑风暴聊天记录和灵感池（房间共享，跨用户/设备） */
         function saveBrainstormData() {
-            // 保存聊天记录
-            ScopedStorage.set('tw_bs_chat', chatHistory, _bsRoomId);
-            // 保存灵感池
+            ScopedStorage.saveBrainstormChat(chatHistory, _bsRoomId);
             const ideas = [];
             document.querySelectorAll('#idea-board > div[id^="idea-"]').forEach(card => {
                 const p = card.querySelector('.idea-text,.text-sm');
@@ -484,18 +242,28 @@
                 const source = srcEl ? srcEl.parentElement.textContent.trim() : 'AI';
                 if (p) ideas.push({ text: p.textContent.trim(), source });
             });
-            ScopedStorage.set('tw_bs_ideas', ideas, _bsRoomId);
-            // 同步写入 sharedIdeas 供下一步使用
+            ScopedStorage.saveBrainstormIdeas(ideas, _bsRoomId);
             if (ideas.length > 0) {
                 const shared = ideas.map((idea, i) => ({ id: i+1, text: idea.text, author: idea.source, votes: 0 }));
                 ScopedStorage.saveSharedIdeas(shared, _bsRoomId);
             }
         }
 
+        /** 清掉动态聊天与灵感卡，便于从后端拉到的最新数据重建。 */
+        function clearBrainstormDom() {
+            document.querySelectorAll('#chat-container .message-enter').forEach(el => el.remove());
+            const board = document.getElementById('idea-board');
+            if (board) board.innerHTML = '';
+            chatHistory = [];
+            const ic = document.getElementById('idea-count');
+            if (ic) ic.innerText = '0';
+            const sc = document.getElementById('sidebar-idea-count');
+            if (sc) sc.innerText = '0';
+        }
+
         /** 加载之前保存的聊天记录 */
         function loadBrainstormData() {
-            // 加载聊天记录
-            const saved = ScopedStorage.get('tw_bs_chat', _bsRoomId);
+            const saved = ScopedStorage.loadBrainstormChat(_bsRoomId);
             if (saved && saved.length > 0) {
                 chatHistory = saved;
                 const chatContainer = document.getElementById('chat-container');
@@ -538,7 +306,7 @@
                 chatContainer.scrollTop = chatContainer.scrollHeight;
             }
             // 加载灵感池
-            const savedIdeas = ScopedStorage.get('tw_bs_ideas', _bsRoomId);
+            const savedIdeas = ScopedStorage.loadBrainstormIdeas(_bsRoomId);
             if (savedIdeas && savedIdeas.length > 0) {
                 savedIdeas.forEach(idea => {
                     addIdeaToBoard(idea.text, idea.source || 'AI', 'bg-blue-100 text-blue-600');
@@ -557,21 +325,33 @@
             return '';
         }
 
-        function getSelectedModels() {
-            // 优先使用右侧面板的 AI 成员列表
-            if (brainstormAIMembers && brainstormAIMembers.length > 0) {
-                return brainstormAIMembers.map(m => {
-                    const full = AI_MODELS.find(a => a.id === m.id);
-                    return full || m;
-                });
-            }
-            // 回退到复选框
-            const checkboxes = document.querySelectorAll('.model-checkbox');
-            const selected = [];
-            checkboxes.forEach((cb, i) => {
-                if (cb.checked && AI_MODELS[i]) selected.push(AI_MODELS[i]);
+        /** 拉取右侧 RoomMembers 面板里登记的 AI 队友, 与本地 AI_MODELS 元数据对齐。
+         *  ThinkLetCommon.getAIMembers 已经返回完整的 RoomMembers shape, 这里
+         *  转成本页发送 chat 接口需要的 {id, name, iconClass, iconName} 形态。 */
+        function getRoomAIList() {
+            let list = [];
+            try {
+                if (typeof ThinkLetCommon !== 'undefined') list = ThinkLetCommon.getAIMembers() || [];
+            } catch { list = []; }
+            return list.map(m => {
+                const full = AI_MODELS.find(a => a.id === m.id);
+                if (full) return full;
+                return {
+                    id: m.id,
+                    name: m.name,
+                    iconClass: ((m.iconBg || 'bg-blue-100') + ' ' + (m.iconColor || 'text-blue-600')).trim(),
+                    iconName: m.icon || 'fa-robot',
+                };
             });
-            return selected;
+        }
+
+        function getSelectedModels() {
+            const cbs = document.querySelectorAll('.model-checkbox:checked');
+            const ids = Array.from(cbs).map(cb => cb.dataset.modelId);
+            const all = getRoomAIList();
+            // 没有任何复选框时(渲染前的极早期), 退化为全选
+            if (ids.length === 0) return all;
+            return all.filter(m => ids.includes(m.id));
         }
 
         async function sendBrainstorm() {
@@ -813,21 +593,30 @@
             if (sc) sc.innerText = count;
         }
 
-        // 动态渲染模型复选框（仅显示 AI 队友中的模型）
+        // 动态渲染模型复选框（直接从右侧 RoomMembers 面板的 AI 队友列表渲染,
+        // 重渲染时保留用户已勾选/取消的状态）
         function renderModelCheckboxes() {
             const container = document.getElementById('model-checkboxes');
             if (!container) return;
+            const previousState = {};
+            container.querySelectorAll('input.model-checkbox').forEach(cb => {
+                if (cb.dataset.modelId) previousState[cb.dataset.modelId] = cb.checked;
+            });
+            const list = getRoomAIList();
             container.innerHTML = '';
-            const memberIds = brainstormAIMembers.map(m => m.id);
-            AI_MODELS.forEach((m, i) => {
-                if (!memberIds.includes(m.id)) return; // 只显示已添加的 AI 队友
+            if (list.length === 0) {
+                container.innerHTML = '<span class="text-xs text-slate-400">请在右侧添加 AI 队友</span>';
+                return;
+            }
+            list.forEach(m => {
+                const checked = previousState[m.id] === undefined ? true : previousState[m.id];
                 const label = document.createElement('label');
                 label.className = 'flex items-center gap-1 bg-blue-50 text-blue-700 border-blue-100 px-2 py-1 rounded border cursor-pointer';
-                label.innerHTML = `<input type="checkbox" checked class="model-checkbox accent-blue-600" data-model-id="${m.id}"> ${m.name}`;
+                label.innerHTML = `<input type="checkbox" ${checked ? 'checked' : ''} class="model-checkbox accent-blue-600" data-model-id="${m.id}"> ${m.name}`;
                 container.appendChild(label);
             });
         }
-        // renderModelCheckboxes 在 initMembersPanel -> syncModelCheckboxes 中调用
+        // 由 ThinkLetCommon 的 onChange (window.onAIMembersChanged) 钩子统一驱动重渲染
 
         // 收集灵感池中所有观点文本
         function collectIdeasFromBoard() {
@@ -908,23 +697,30 @@
             }
         }
 
-        // ═══ 流程导航初始化 ═══
-        (function initWorkflowNav() {
-            if (WorkflowNav.init()) {
-                WorkflowNav.renderSidebar(document.getElementById('workflow-nav-content'));
-                WorkflowNav.updateNextButton(document.getElementById('next-step-btn'));
-                WorkflowNav.updateProgressBar(document.getElementById('progress-bars'));
-                WorkflowNav.updateStepInfo(document.getElementById('step-subtitle'));
-                // 更新用户名
-                try {
-                    const user = Auth.getUser();
-                    if (user) document.getElementById('sidebar-username').textContent = user.display_name;
-                } catch {}
+        // ═══ 页面初始化 ═══
+        // 与其它环节页保持一致: ThinkLetCommon 注入左侧流程栏 + 右侧 RoomMembers 面板。
+        // RoomMembers 内部启动房间共享 KV 轮询, 因此本页不再单独调用 startRoomSharedPoll。
+        (function init() {
+            ThinkLetCommon.init();
+
+            if (typeof WorkflowNav !== 'undefined') {
+                if (WorkflowNav.updateNextButton) WorkflowNav.updateNextButton(document.getElementById('next-step-btn'));
+                if (WorkflowNav.updateProgressBar) WorkflowNav.updateProgressBar(document.getElementById('progress-bars'));
+                if (WorkflowNav.updateStepInfo)    WorkflowNav.updateStepInfo(document.getElementById('step-subtitle'));
             }
-            // 初始化动态成员面板
-            initMembersPanel();
-            // 加载之前保存的聊天和灵感池
+
+            // RoomMembers 面板 AI 成员变更时, 顶部"响应模型"复选框跟着重渲染
+            window.onAIMembersChanged = renderModelCheckboxes;
+            renderModelCheckboxes();
+
             loadBrainstormData();
+
+            ThinkLetCommon.setupRoomSync({
+                onChatChange:     () => { clearBrainstormDom(); loadBrainstormData(); },
+                onIdeasChange:    () => { clearBrainstormDom(); loadBrainstormData(); },
+                onTimelineChange: () => { if (ThinkLetCommon.getRoomId()) location.reload(); },
+                onAIMembersChange: renderModelCheckboxes,
+            });
         })();
     </script>
 </body>
